@@ -16,7 +16,7 @@ const sourceFor = async files => Promise.all(files.slice(0, 8).map(async file =>
 export async function runDelivery(item, { dryRun = false } = {}) {
   const card = { title: item.content.title, body: item.content.body || '', project_item_id: item.id };
   const tree = output(['git', 'ls-files']).split('\n').filter(Boolean).slice(0, 500);
-  const plan = await requestStructuredOutput({ name: 'delivery_plan', schema: planSchema, instructions: 'You are a software delivery planner. Return only the schema. Escalate ambiguous, destructive, or out-of-scope work. Select tests only from the supplied policy.', input: JSON.stringify({ card, tree, policy }) });
+  const plan = await requestStructuredOutput({ name: 'delivery_plan', schema: planSchema, instructions: 'You are a software delivery planner. Return only the schema. Escalate only destructive, credential-related, infrastructure, or genuinely unimplementable work. A card that names its target file and explicitly forbids sensitive paths is eligible to proceed; do not escalate it for generic regression risk. Select tests only from the supplied policy.', input: JSON.stringify({ card, tree, policy }) });
   const planErrors = validatePlan(plan, policy);
   if (planErrors.length || plan.decision === 'escalate') return { outcome: 'review_required', reason: planErrors.join('; ') || plan.summary, plan };
   if (dryRun) return { outcome: 'dry_run', plan };
