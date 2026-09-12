@@ -1,0 +1,7 @@
+{
+  "allowedTestCommands": ["node --check", "node --test"],
+  "protectedPathPrefixes": [".github/workflows/", "infrastructure/", "deploy/"],
+  "protectedPathNames": ["CLAUDE.md", "package-lock.json", "pnpm-lock.yaml", "yarn.lock"],
+  "maxChangedFiles": 15,
+  "maxChangedLines": 600
+}

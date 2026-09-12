@@ -1,0 +1,43 @@
+name: T-REX delivery dispatcher
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Inspect approved cards without changing GitHub
+        required: true
+        default: true
+        type: boolean
+      project_item_id:
+        description: Optional Project item node ID for a single-card run
+        required: false
+        type: string
+  schedule:
+    - cron: '*/10 * * * *'
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: trex-delivery-dispatch
+  cancel-in-progress: false
+
+jobs:
+  deliver:
+    runs-on: ubuntu-latest
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      PROJECTS_TOKEN: ${{ secrets.PROJECTS_TOKEN }}
+      GITHUB_TOKEN: ${{ github.token }}
+      PROJECT_OWNER: ${{ vars.PROJECT_OWNER }}
+      PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+      PROJECT_ITEM_ID: ${{ inputs.project_item_id }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Dispatch delivery cards
+        run: node delivery/dispatch.mjs ${{ inputs.dry_run && '--dry-run' || '' }}
