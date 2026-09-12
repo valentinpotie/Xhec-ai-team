@@ -33,11 +33,20 @@ export async function runDelivery(item, { dryRun = false } = {}) {
 
   const branch = `codex/delivery-${item.id}`;
   output(['git', 'checkout', '-b', branch]);
-  const builder = await requestStructuredOutput({ name: 'delivery_patch', schema: builderSchema, instructions: 'You implement only the approved plan. When decision is patch, patch MUST be a complete unified Git diff beginning exactly with "diff --git a/"; never use prose, explanations, or Markdown fences. Use only paths from the approved plan. Never modify protected files or invoke commands.', input: JSON.stringify({ card, plan, sources: await sourceFor(plan.files), policy }) });
+  const sources = await sourceFor(plan.files);
+  let builder = await requestStructuredOutput({ name: 'delivery_patch', schema: builderSchema, instructions: 'You implement only the approved plan. When decision is patch, patch MUST be a complete unified Git diff beginning exactly with "diff --git a/"; never use prose, explanations, or Markdown fences. Use only paths from the approved plan. Never modify protected files or invoke commands.', input: JSON.stringify({ card, plan, sources, policy }) });
   builder.patch = normalizePatch(builder.patch);
   const builderErrors = validateBuilder(builder, policy);
   if (builderErrors.length || builder.decision === 'escalate') return { outcome: 'review_required', reason: builderErrors.join('; ') || builder.summary, plan, builder };
-  applyCheckedPatch(builder.patch, policy, process.cwd());
+  try {
+    applyCheckedPatch(builder.patch, policy, process.cwd());
+  } catch (error) {
+    builder = await requestStructuredOutput({ name: 'corrected_delivery_patch', schema: builderSchema, instructions: 'Your previous unified diff was rejected by git. Return a corrected, complete unified Git diff only. It must begin with "diff --git a/", include valid ---/+++ headers and hunks, and modify only the approved target paths.', input: JSON.stringify({ card, plan, sources, rejected_patch: builder.patch, git_error: error.message, policy }) });
+    builder.patch = normalizePatch(builder.patch);
+    const retryErrors = validateBuilder(builder, policy);
+    if (retryErrors.length || builder.decision === 'escalate') return { outcome: 'review_required', reason: retryErrors.join('; ') || builder.summary, plan, builder, branch };
+    applyCheckedPatch(builder.patch, policy, process.cwd());
+  }
   const testOutput = plan.test_commands.map(command => output(command.split(' '))).join('\n');
   const diff = output(['git', 'diff', '--no-ext-diff']);
   const critic = await requestStructuredOutput({ name: 'delivery_critic', schema: criticSchema, instructions: 'You are an independent adversarial code reviewer. Compare the card, plan, patch, and test output. Approve only when all requirements and safety conditions are met.', input: JSON.stringify({ card, plan, diff, testOutput, policy }) });
