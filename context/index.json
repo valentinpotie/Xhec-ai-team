@@ -1,0 +1,8 @@
+[
+  { "id": "board-review-2026-08.md",                "title": "Board review — August 2026",        "kind": "decision" },
+  { "id": "okrs-2026-q3.md",                        "title": "OKRs — Q3 2026",                     "kind": "objectives" },
+  { "id": "decisions/ADR-012-no-new-modules-q3.md", "title": "ADR-012 — No new modules in Q3",     "kind": "decision" },
+  { "id": "capacity-2026-q3.md",                    "title": "Engineering capacity — Q3 2026",     "kind": "capacity" },
+  { "id": "policies/rate-audit-RA-2024-11.md",      "title": "Rate Audit Policy RA-2024-11",       "kind": "policy" },
+  { "id": "accounts.md",                            "title": "Accounts — commercial context",      "kind": "accounts" }
+]

@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>OrderDesk</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; padding: 24px; background: #fafafa; }
+  h1 { font-size: 18px; margin: 0 0 16px; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: #666; margin: 0 0 6px; }
+  .bar { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; }
+  .bar input { padding: 6px; width: 260px; }
+  .cols { display: flex; gap: 20px; align-items: flex-start; }
+  .cols > div { flex: 1; min-width: 0; }
+  .field { background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; }
+  .field label { display: block; font-size: 12px; color: #666; margin-bottom: 4px; }
+  .field input { width: 100%; padding: 6px; box-sizing: border-box; }
+  .required { color: #c00; }
+  .actions { margin-top: 12px; }
+  button { padding: 8px 14px; font-size: 13px; cursor: pointer; }
+  button[disabled] { opacity: .5; cursor: default; }
+  #feedback { width: 100%; box-sizing: border-box; height: 70px; padding: 8px; font-family: inherit; font-size: 13px; }
+  #proposal { margin-top: 12px; }
+  .card { background: #fff; border: 1px solid #ddd; border-left: 4px solid #3a6df0; border-radius: 6px; padding: 12px; font-size: 13px; }
+  .card.refuse { border-left-color: #c00; }
+  .card h3 { font-size: 13px; margin: 0 0 8px; }
+  .card p { margin: 0 0 8px; }
+  .card .k { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: #888; }
+  .card ul { margin: 0 0 8px; padding-left: 18px; }
+  .pending { font-size: 12px; color: #888; }
+  .panels { display: flex; gap: 12px; margin-top: 24px; }
+  .panels > div { flex: 1; min-width: 0; }
+  #log, #telemetry { background: #111; color: #0f0; font-family: monospace; font-size: 12px; padding: 12px; border-radius: 6px; height: 180px; overflow: auto; white-space: pre-wrap; }
+  #telemetry { color: #6cf; }
+</style>
+</head>
+<body>
+
+<h1>OrderDesk — New order</h1>
+<div class="bar">
+  <select id="account"></select>
+  <input id="apikey" type="password" placeholder="OpenAI API key (kept in memory only)">
+</div>
+
+<div class="cols">
+  <div>
+    <h2>Order form</h2>
+    <div id="form"></div>
+    <div class="actions">
+      <button id="submit">Create order</button>
+    </div>
+  </div>
+  <div>
+    <h2>Tell the product agent</h2>
+    <textarea id="feedback" placeholder="e.g. Creating an order takes way too long for us."></textarea>
+    <div class="actions">
+      <button id="ask">Send to agent</button>
+    </div>
+    <div id="proposal"></div>
+  </div>
+</div>
+
+<div class="panels">
+  <div>
+    <h2>Agent log</h2>
+    <div id="log"></div>
+  </div>
+  <div>
+    <h2>Usage telemetry</h2>
+    <div id="telemetry"></div>
+  </div>
+</div>
+
+<script>
+// ---------- STATE ----------
+const ACCOUNTS = {
+  acme:   { name: "Acme Logistics" },
+  brava:  { name: "Brava Retail" }
+};
+
+const BASE_FIELDS = [
+  { id: "customer",  label: "Customer name",      visible: true, order: 1, required: true },
+  { id: "email",     label: "Contact email",      visible: true, order: 2, required: true },
+  { id: "sku",       label: "SKU",                visible: true, order: 3, required: true },
+  { id: "qty",       label: "Quantity",           visible: true, order: 4, required: true },
+  { id: "warehouse", label: "Warehouse",          visible: true, order: 5, required: false },
+  { id: "vat",       label: "VAT number",         visible: true, order: 6, required: true },
+  { id: "carrier",   label: "Preferred carrier",  visible: true, order: 7, required: false },
+  { id: "notes",     label: "Internal notes",     visible: true, order: 8, required: false }
+];
+
+const uiConfig = {
+  acme:  { fields: structuredClone(BASE_FIELDS) },
+  brava: { fields: structuredClone(BASE_FIELDS) }
+};
+
+let currentAccount = "acme";
+
+// ---------- BUSINESS CONTEXT ----------
+const BUSINESS_CONTEXT = {
+  product: "OrderDesk — B2B order management back-office.",
+  quarter_goals: [
+    "Cut the time it takes a high-volume account to create one order.",
+    "Raise the share of orders completed on the first attempt.",
+    "Keep one shared codebase: per-account differences live in uiConfig only."
+  ],
+  compliance_rules: [
+    {
+      field: "vat",
+      rule: "The VAT number field must stay visible and required on every account in the EU. It can never be hidden or made optional, whatever a user asks.",
+      source: "Compliance policy FIN-2024-07 — EU VAT reverse charge on intra-community B2B sales."
+    }
+  ],
+  accounts: {
+    acme: {
+      name: "Acme Logistics",
+      plan: "Enterprise",
+      region: "EU",
+      profile: "Third-party logistics, 400+ orders/day, operates its own warehouse network.",
+      known_facts: [
+        "Carrier is fixed by a negotiated framework contract, never chosen order by order.",
+        "Speed of entry is their stated top priority; they type the same shape of order all day."
+      ]
+    },
+    brava: {
+      name: "Brava Retail",
+      plan: "Growth",
+      region: "EU",
+      profile: "Retail chain, ~20 orders/day, dropship only, owns no warehouse.",
+      known_facts: [
+        "Has no warehouse of its own, so the Warehouse field never applies to them.",
+        "Uses internal notes heavily to pass handling instructions to suppliers."
+      ]
+    }
+  }
+};
+
+// ---------- TELEMETRY ----------
+const telemetry = [];
+let session = null;      // { account, start, touched:Set, filled:Set, dirty:bool }
+let focusStart = null;   // { field, at }
+
+function track(type, data) {
+  const e = Object.assign({
+    ts: Date.now(),
+    account: currentAccount,
+    type: type
+  }, data || {});
+  telemetry.push(e);
+  const time = new Date(e.ts).toTimeString().slice(0, 8);
+  const extra = Object.keys(e)
+    .filter(k => k !== "ts" && k !== "account" && k !== "type")
+    .map(k => k + "=" + (Array.isArray(e[k]) ? (e[k].join("|") || "-") : e[k]))
+    .join(" ");
+  const el = document.getElementById("telemetry");
+  el.textContent += time + " [" + e.account + "] " + e.type + (extra ? " " + extra : "") + "\n";
+  el.scrollTop = el.scrollHeight;
+}
+
+function startSession() {
+  session = { account: currentAccount, start: Date.now(), touched: new Set(), filled: new Set(), dirty: false };
+  focusStart = null;
+  track("screen_view");
+}
+
+function visibleFieldIds() {
+  return uiConfig[currentAccount].fields.filter(f => f.visible).map(f => f.id);
+}
+
+function emptyFieldIds() {
+  return visibleFieldIds().filter(id => !session.filled.has(id));
+}
+
+function endSession(reason, submitted) {
+  if (!session) return;
+  flushFocus();
+  const ms = Date.now() - session.start;
+  track(submitted ? "form_submitted" : "form_abandoned", {
+    reason: reason,
+    screen_ms: ms,
+    fields_touched: Array.from(session.touched),
+    fields_never_filled: emptyFieldIds()
+  });
+  session = null;
+}
+
+function flushFocus() {
+  if (!focusStart) return;
+  const input = document.querySelector('input[data-id="' + focusStart.field + '"]');
+  const value = input ? input.value.trim() : "";
+  track("field_blur", {
+    field: focusStart.field,
+    dwell_ms: Date.now() - focusStart.at,
+    left_empty: value === ""
+  });
+  focusStart = null;
+}
+
+// Aggregate raw events into something an LLM can reason about.
+function telemetrySummary(account) {
+  const evts = telemetry.filter(e => e.account === account);
+  const fields = {};
+  function bucket(id) {
+    if (!fields[id]) fields[id] = { focus_count: 0, total_dwell_ms: 0, blurred_empty_count: 0, never_filled_count: 0, blocked_submit_count: 0 };
+    return fields[id];
+  }
+
+  let sessions = 0, submitted = 0, abandoned = 0, screenMs = 0;
+  for (const e of evts) {
+    if (e.type === "screen_view") sessions++;
+    if (e.type === "field_first_focus") bucket(e.field).focus_count++;
+    if (e.type === "field_blur") {
+      const b = bucket(e.field);
+      b.total_dwell_ms += e.dwell_ms;
+      if (e.left_empty) b.blurred_empty_count++;
+    }
+    if (e.type === "submit_blocked") (e.missing_required || []).forEach(id => bucket(id).blocked_submit_count++);
+    if (e.type === "form_submitted" || e.type === "form_abandoned") {
+      screenMs += e.screen_ms;
+      if (e.type === "form_submitted") submitted++; else abandoned++;
+      (e.fields_never_filled || []).forEach(id => bucket(id).never_filled_count++);
+    }
+  }
+
+  const finished = submitted + abandoned;
+  return {
+    account: account,
+    sessions_started: sessions,
+    forms_submitted: submitted,
+    forms_abandoned: abandoned,
+    avg_time_on_form_ms: finished ? Math.round(screenMs / finished) : 0,
+    per_field: fields
+  };
+}
+
+// ---------- RENDER ----------
+function render() {
+  const sel = document.getElementById("account");
+  if (!sel.options.length) {
+    for (const k in ACCOUNTS) sel.add(new Option(ACCOUNTS[k].name, k));
+    sel.onchange = () => {
+      endSession("account_switch", false);
+      currentAccount = sel.value;
+      log("Switched to " + ACCOUNTS[currentAccount].name);
+      document.getElementById("proposal").innerHTML = "";
+      render();
+      startSession();
+    };
+  }
+
+  const form = document.getElementById("form");
+  form.innerHTML = "";
+
+  uiConfig[currentAccount].fields
+    .filter(f => f.visible)
+    .sort((a, b) => a.order - b.order)
+    .forEach(f => {
+      const d = document.createElement("div");
+      d.className = "field";
+      d.innerHTML = `<label>${f.label}${f.required ? ' <span class="required">*</span>' : ''}</label><input data-id="${f.id}">`;
+      form.appendChild(d);
+    });
+
+  form.querySelectorAll("input").forEach(input => {
+    const id = input.dataset.id;
+    input.addEventListener("focus", () => {
+      flushFocus();
+      focusStart = { field: id, at: Date.now() };
+      if (session && !session.touched.has(id)) {
+        session.touched.add(id);
+        track("field_first_focus", { field: id });
+      }
+    });
+    input.addEventListener("blur", flushFocus);
+    input.addEventListener("input", () => {
+      if (!session) return;
+      session.dirty = true;
+      if (input.value.trim() === "") session.filled.delete(id);
+      else session.filled.add(id);
+    });
+  });
+}
+
+document.getElementById("submit").onclick = () => {
+  if (!session) startSession();
+  const missing = uiConfig[currentAccount].fields
+    .filter(f => f.visible && f.required && !session.filled.has(f.id))
+    .map(f => f.id);
+  if (missing.length) {
+    track("submit_blocked", { missing_required: missing });
+    log("Order not created: missing " + missing.join(", "));
+    return;
+  }
+  endSession("submit", true);
+  log("Order created for " + ACCOUNTS[currentAccount].name);
+  render();
+  startSession();
+};
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden && session && session.dirty) endSession("tab_hidden", false);
+  else if (!document.hidden && !session) startSession();
+});
+
+window.addEventListener("beforeunload", () => {
+  if (session && session.dirty) endSession("page_left", false);
+});
+
+// ---------- PATCH ----------
+// patch = { account: "acme", changes: [ { field: "notes", visible: false } ] }
+function applyPatch(patch) {
+  const target = uiConfig[patch.account];
+  if (!target) { log("REJECTED: unknown account " + patch.account); return false; }
+
+  for (const c of patch.changes) {
+    const f = target.fields.find(x => x.id === c.field);
+    if (!f) { log("REJECTED: unknown field " + c.field); return false; }
+    if ("visible" in c) f.visible = c.visible;
+    if ("order"   in c) f.order   = c.order;
+    if ("label"   in c) f.label   = c.label;
+    log("APPLIED: " + c.field + " -> " + JSON.stringify(c));
+  }
+  render();
+  return true;
+}
+
+// ---------- PATCH VALIDATION ----------
+function validateProposal(obj) {
+  const errs = [];
+  if (!obj || typeof obj !== "object") return ["response is not a JSON object"];
+  if (obj.decision !== "propose" && obj.decision !== "refuse") errs.push('decision must be "propose" or "refuse"');
+  if (typeof obj.user_value !== "string" || !obj.user_value.trim()) errs.push("user_value must be a non-empty string");
+  if (typeof obj.business_value !== "string" || !obj.business_value.trim()) errs.push("business_value must be a non-empty string");
+
+  if (obj.decision === "refuse") {
+    if (typeof obj.refusal_source !== "string" || !obj.refusal_source.trim()) errs.push("refusal_source must cite the business context entry that forbids the change");
+    return errs;
+  }
+
+  const p = obj.patch;
+  if (!p || typeof p !== "object") return errs.concat(["patch must be an object when decision is propose"]);
+  if (!uiConfig[p.account]) errs.push("patch.account must be one of: " + Object.keys(uiConfig).join(", "));
+  if (!Array.isArray(p.changes) || !p.changes.length) return errs.concat(["patch.changes must be a non-empty array"]);
+
+  p.changes.forEach((c, i) => {
+    const at = "patch.changes[" + i + "]";
+    if (!c || typeof c !== "object") { errs.push(at + " must be an object"); return; }
+    const known = uiConfig[p.account] && uiConfig[p.account].fields.some(f => f.id === c.field);
+    if (!known) errs.push(at + '.field "' + c.field + '" is not a field of that account');
+    const keys = Object.keys(c).filter(k => k !== "field");
+    if (!keys.length) errs.push(at + " must change at least one of: visible, order, label");
+    keys.forEach(k => {
+      if (k === "visible" && typeof c.visible !== "boolean") errs.push(at + ".visible must be a boolean");
+      else if (k === "order" && (typeof c.order !== "number" || c.order < 1 || c.order > 99)) errs.push(at + ".order must be a number between 1 and 99");
+      else if (k === "label" && (typeof c.label !== "string" || !c.label.trim() || c.label.length > 60)) errs.push(at + ".label must be a string of 1 to 60 chars");
+      else if (!["visible", "order", "label"].includes(k)) errs.push(at + "." + k + " is not an allowed key");
+    });
+    if (c.field === "vat" && c.visible === false) errs.push(at + ' hides the VAT field, which the compliance rules forbid — refuse instead');
+  });
+  return errs;
+}
+
+// ---------- AGENT ----------
+const SYSTEM_PROMPT = [
+  "You are a product manager agent living inside the OrderDesk back-office.",
+  "You read one account's written feedback, the usage telemetry collected while that person was actually clicking, the company business context, and the current UI configuration.",
+  "You propose ONE small, concrete change to the form layout for that account only.",
+  "You may only hide or show a field, reorder fields, or rename a label. Nothing else exists.",
+  "Prefer the change the telemetry actually supports. Cite the numbers you used.",
+  "If the request conflicts with a compliance rule in the business context, you must refuse and cite that rule's source verbatim.",
+  "Answer with JSON only, no prose, in exactly this shape:",
+  '{ "decision": "propose" | "refuse", "user_value": "one sentence, what the user gains", "business_value": "one sentence, why it serves the business goals", "patch": { "account": "<account id>", "changes": [ { "field": "<field id>", "visible": true|false, "order": 1, "label": "..." } ] }, "refusal_source": "<only when refusing: the source of the rule>" }',
+  'Include in each change only the keys you actually modify. Set "patch" to null when you refuse.'
+].join("\n");
+
+async function callOpenAI(messages) {
+  const key = document.getElementById("apikey").value.trim();
+  if (!key) throw new Error("no API key entered");
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + key },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      temperature: 0.2,
+      response_format: { type: "json_object" },
+      messages: messages
+    })
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error("OpenAI HTTP " + res.status + " — " + body.slice(0, 200));
+  }
+  const data = await res.json();
+  return data.choices[0].message.content;
+}
+
+let pendingProposal = null;
+
+async function askAgent() {
+  const feedback = document.getElementById("feedback").value.trim();
+  if (!feedback) { log("AGENT: no feedback typed."); return; }
+
+  const btn = document.getElementById("ask");
+  btn.disabled = true;
+  document.getElementById("proposal").innerHTML = '<p class="pending">Agent is thinking…</p>';
+  track("feedback_submitted", { chars: feedback.length });
+  log("AGENT: reading feedback + " + telemetry.filter(e => e.account === currentAccount).length + " telemetry events for " + ACCOUNTS[currentAccount].name);
+
+  const userPrompt = [
+    "ACCOUNT: " + currentAccount + " (" + ACCOUNTS[currentAccount].name + ")",
+    "",
+    "WRITTEN FEEDBACK:",
+    feedback,
+    "",
+    "USAGE TELEMETRY (observed, never typed by the user):",
+    JSON.stringify(telemetrySummary(currentAccount), null, 2),
+    "",
+    "BUSINESS CONTEXT:",
+    JSON.stringify(BUSINESS_CONTEXT, null, 2),
+    "",
+    "CURRENT UI CONFIG FOR THIS ACCOUNT:",
+    JSON.stringify(uiConfig[currentAccount], null, 2)
+  ].join("\n");
+
+  const messages = [
+    { role: "system", content: SYSTEM_PROMPT },
+    { role: "user", content: userPrompt }
+  ];
+
+  try {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const raw = await callOpenAI(messages);
+      let obj = null, parseErr = null;
+      try { obj = JSON.parse(raw); } catch (e) { parseErr = "response is not valid JSON: " + e.message; }
+      const errs = parseErr ? [parseErr] : validateProposal(obj);
+
+      if (!errs.length) {
+        pendingProposal = obj;
+        window.pendingProposal = obj;
+        log("AGENT: " + (obj.decision === "refuse" ? "refused, awaiting nothing" : "proposal ready, awaiting human validation"));
+        renderProposal(obj);
+        btn.disabled = false;
+        return;
+      }
+
+      log("AGENT: invalid patch (attempt " + attempt + ") — " + errs.join("; "));
+      if (attempt === 2) {
+        log("AGENT: gave up after one retry. No change proposed.");
+        document.getElementById("proposal").innerHTML = '<div class="card refuse"><h3>Agent gave up</h3><p>The model returned an invalid patch twice. Nothing was changed. See the log.</p></div>';
+        btn.disabled = false;
+        return;
+      }
+      messages.push({ role: "assistant", content: raw });
+      messages.push({ role: "user", content: "Your JSON was rejected by the schema validator:\n" + errs.join("\n") + "\nReturn corrected JSON only." });
+    }
+  } catch (e) {
+    log("AGENT ERROR: " + e.message);
+    document.getElementById("proposal").innerHTML = '<div class="card refuse"><h3>Agent unreachable</h3><p>' + e.message + '</p></div>';
+    btn.disabled = false;
+  }
+}
+
+function describeChange(account, c) {
+  const f = uiConfig[account].fields.find(x => x.id === c.field);
+  const name = f ? f.label : c.field;
+  const bits = [];
+  if ("visible" in c) bits.push(c.visible ? "show" : "hide");
+  if ("order" in c) bits.push("move to position " + c.order);
+  if ("label" in c) bits.push('rename to "' + c.label + '"');
+  return name + " — " + bits.join(", ");
+}
+
+function renderProposal(obj) {
+  const el = document.getElementById("proposal");
+  if (obj.decision === "refuse") {
+    el.innerHTML =
+      '<div class="card refuse">' +
+      "<h3>Agent refuses this change</h3>" +
+      '<p class="k">Why</p><p>' + obj.user_value + "</p>" +
+      '<p class="k">Business</p><p>' + obj.business_value + "</p>" +
+      '<p class="k">Source</p><p>' + obj.refusal_source + "</p>" +
+      "</div>";
+    return;
+  }
+  el.innerHTML =
+    '<div class="card">' +
+    "<h3>Proposed change — " + ACCOUNTS[obj.patch.account].name + " only</h3>" +
+    "<ul>" + obj.patch.changes.map(c => "<li>" + describeChange(obj.patch.account, c) + "</li>").join("") + "</ul>" +
+    '<p class="k">User value</p><p>' + obj.user_value + "</p>" +
+    '<p class="k">Business value</p><p>' + obj.business_value + "</p>" +
+    '<p class="pending">Awaiting human validation.</p>' +
+    "</div>";
+}
+
+document.getElementById("ask").onclick = askAgent;
+
+function log(m) {
+  const el = document.getElementById("log");
+  el.textContent += "> " + m + "\n";
+  el.scrollTop = el.scrollHeight;
+}
+
+// ---------- BOOT ----------
+render();
+startSession();
+log("OrderDesk ready. Enter an API key, use the form, then send the agent your feedback.");
+window.applyPatch = applyPatch;
+window.uiConfig = uiConfig;
+window.telemetry = telemetry;
+window.telemetrySummary = telemetrySummary;
+</script>
+</body>
+</html>
