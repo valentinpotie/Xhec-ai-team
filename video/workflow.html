@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>T-REX Product Agent — how it works</title>
+<!-- Explainer for the demo video. Standalone: no dependency on trex-cockpit.html.
+     Keys: Space / → next step · ← previous · R reset · A autoplay · ?step=N jumps · ?auto=1 autoplays.
+     Record at 1920×1080 (the stage scales to fit any window; letterbox is the page background). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Roboto:wght@400;500;700&display=swap">
+<style>
+:root{
+  --navy:#061D50; --red:#E20101; --green:#017F5C; --bg:#F3F5F7; --line:#DDDFE3; --ink:#1B2437; --muted:#5F6B7A; --white:#FFFFFF;
+  --display:'Antonio','Arial Narrow',sans-serif; --text:'Roboto',Arial,sans-serif;
+  --ease:cubic-bezier(.2,.7,.2,1);
+}
+html,body{margin:0;height:100%;background:var(--bg);overflow:hidden;font-family:var(--text);color:var(--ink);-webkit-font-smoothing:antialiased}
+#stage{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;background:var(--bg);overflow:hidden}
+#stage.instant *{transition:none!important}
+#wires{position:absolute;left:0;top:0;pointer-events:none}
+
+/* reveal primitive */
+.r{opacity:0;transform:translateY(10px);transition:opacity .5s var(--ease),transform .55s var(--ease)}
+.r.on{opacity:1;transform:none}
+.r.off{opacity:0;transform:translateY(-8px);transition:opacity .35s var(--ease),transform .4s var(--ease)}
+.wire path{fill:none;stroke:var(--navy);stroke-width:2;stroke-linecap:round}
+.wire polygon{fill:var(--navy);opacity:0}
+.wire.on path{stroke-dashoffset:0!important;transition:stroke-dashoffset .7s var(--ease)}
+.wire.on polygon{opacity:1;transition:opacity .15s .58s}
+.wire.br path{stroke-width:1.5}
+
+/* header */
+.brand{position:absolute;top:52px;display:flex;align-items:center;gap:18px}
+.brand-l{left:80px}
+.brand-l .wm{font-family:var(--display);font-weight:700;font-size:40px;letter-spacing:.02em;color:var(--navy);line-height:1}
+.brand-l .sep{width:1px;height:34px;background:var(--line)}
+.brand-l .sub{font-size:15px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.brand-r{right:80px;color:var(--navy)}
+.brand-r svg{height:60px;width:auto;display:block}
+
+/* headline (step 0) */
+#headline{position:absolute;left:0;right:0;top:430px;text-align:center}
+#headline h1{margin:0;font-family:var(--display);font-weight:700;font-size:72px;letter-spacing:.01em;color:var(--navy);line-height:1.05}
+#headline p{margin:22px 0 0;font-size:24px;color:var(--muted)}
+#headline p b{color:var(--navy);font-weight:500}
+
+/* zone labels */
+.zl{position:absolute;top:168px;display:flex;align-items:center;gap:10px;font-family:var(--display);font-size:21px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.zl::before{content:"";width:9px;height:9px;background:var(--navy)}
+.zl i{font-style:normal;color:var(--navy);font-weight:700;letter-spacing:.06em;margin-right:2px}
+
+/* cards */
+.card{position:absolute;background:var(--white);border:1px solid var(--line);border-radius:4px;padding:22px 24px;box-sizing:border-box}
+.k{font-size:13px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.k .n{font-family:var(--display);font-size:18px;letter-spacing:.04em;color:var(--red);font-weight:700}
+.t{font-size:22px;font-weight:500;color:var(--navy);line-height:1.25;margin:0 0 10px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:var(--navy);border:1px solid var(--line);border-radius:999px;padding:4px 10px;background:var(--white);white-space:nowrap}
+.chip.hot{border-color:var(--red);color:var(--red)}
+.chip svg{width:14px;height:14px;fill:currentColor}
+.quote{font-size:19px;line-height:1.45;color:var(--ink);margin:0}
+.quote::before{content:"\201C"}.quote::after{content:"\201D"}
+.rows{display:grid;grid-template-columns:1fr auto;row-gap:10px;column-gap:16px;font-size:16px;align-items:baseline}
+.rows .l{color:var(--muted)}
+.rows .v{color:var(--navy);font-weight:500;text-align:right;white-space:nowrap}
+.rows .v.hot{color:var(--red)}
+.list{list-style:none;margin:0;padding:0;display:grid;row-gap:10px;font-size:16px}
+.list li{display:flex;gap:12px;align-items:baseline}
+.list li::before{content:"";flex:none;width:8px;height:8px;background:var(--navy);position:relative;top:-2px}
+.list li b{font-weight:500;color:var(--navy);white-space:nowrap}
+.list li span{color:var(--muted)}
+
+/* inputs */
+#inputs{position:absolute;left:80px;top:225px;width:400px;display:flex;flex-direction:column;gap:22px}
+#inputs .card{position:relative;width:auto;height:auto}
+
+/* agent */
+#agent{left:560px;top:370px;width:280px;height:auto}
+.logo-row{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+.logo-row svg{width:30px;height:30px;fill:var(--navy);flex:none}
+.logo-row .t{margin:0}
+.meta{font-size:14px;color:var(--muted);letter-spacing:.02em;margin:0 0 16px}
+.steps{list-style:none;margin:0;padding:0;display:grid;row-gap:12px;font-size:16.5px;line-height:1.3}
+.steps li{display:flex;gap:10px;align-items:flex-start}
+.steps li svg{flex:none;width:18px;height:18px;margin-top:2px}
+.steps li svg path{fill:none;stroke:var(--green);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+
+/* board */
+#board{left:920px;top:380px;width:600px;height:400px;padding:16px}
+.bh{display:flex;align-items:center;gap:10px;height:32px;margin-bottom:12px}
+.bh svg{width:24px;height:24px;fill:var(--navy)}
+.bh .t{margin:0;font-size:19px}
+.bh .sub{margin-left:auto;font-size:13px;color:var(--muted);letter-spacing:.04em}
+.bb{position:relative;display:flex;gap:12px;height:calc(100% - 44px)}
+.col{flex:1;background:var(--bg);border-radius:4px;padding:10px;box-sizing:border-box;min-width:0}
+.col h4{margin:0 0 10px;font-size:12px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:8px}
+.col h4::before{content:"";width:8px;height:8px;border-radius:999px;background:var(--muted)}
+.col.c1 h4::before{background:var(--navy)}
+.col.c2 h4::before{background:var(--green)}
+#ticket{position:absolute;left:10px;top:38px;background:var(--white);border:1px solid var(--line);border-radius:4px;padding:12px 12px 10px;box-sizing:border-box;opacity:0;transition:left .65s var(--ease),opacity .4s var(--ease)}
+#ticket.on{opacity:1}
+.tk-body{transition:opacity .22s var(--ease),transform .22s var(--ease)}
+.tk-body.swap{opacity:0;transform:translateY(4px)}
+.tk-title{font-size:16px;font-weight:500;color:var(--navy);line-height:1.3;margin:0 0 8px}
+.tk-meta{font-size:12.5px;color:var(--muted);margin:0 0 10px}
+.bd{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:500;line-height:1;padding:5px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--white);white-space:nowrap}
+.bd.navy{background:var(--navy);border-color:var(--navy);color:#fff}
+.bd.out{border-color:var(--navy);color:var(--navy)}
+.bd.red{background:var(--red);border-color:var(--red);color:#fff}
+.bd.green{background:var(--green);border-color:var(--green);color:#fff}
+.bds{display:flex;flex-wrap:wrap;gap:6px}
+.bds .bd{opacity:0;transform:translateY(4px);transition:opacity .3s var(--ease),transform .3s var(--ease)}
+.bds.on .bd{opacity:1;transform:none}
+.bds.on .bd:nth-child(2){transition-delay:.08s}.bds.on .bd:nth-child(3){transition-delay:.16s}.bds.on .bd:nth-child(4){transition-delay:.24s}
+#ticket-go{position:absolute;right:-8px;top:-10px;width:26px;height:26px;border-radius:999px;background:var(--green);display:flex;align-items:center;justify-content:center;opacity:0;transform:scale(.6);transition:opacity .3s var(--ease),transform .35s var(--ease)}
+#ticket-go.on{opacity:1;transform:none}
+#ticket-go svg{width:14px;height:14px}
+#ticket-go path{fill:none;stroke:#fff;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+#cursor{position:absolute;width:22px;height:26px;opacity:0;transition:left .65s var(--ease),top .65s var(--ease),opacity .3s var(--ease);z-index:3}
+#cursor.on{opacity:1}
+#cursor.off{opacity:0}
+#cursor path{fill:#fff;stroke:var(--navy);stroke-width:1.5;stroke-linejoin:round}
+
+/* human in the loop */
+#hitl-lb{position:absolute;left:920px;width:600px;top:296px;text-align:center;font-family:var(--display);font-size:24px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--red)}
+
+/* delivery */
+#delivery{left:1580px;top:380px;width:260px;height:270px;padding:18px 20px}
+#delivery .k{margin-bottom:14px}
+.agents{list-style:none;margin:0;padding:0;display:grid;row-gap:10px}
+.agents li{display:flex;align-items:baseline;gap:10px;border:1px solid var(--line);border-radius:4px;padding:10px 12px;font-size:15px;line-height:1.25}
+.agents li b{font-weight:500;color:var(--navy);min-width:48px}
+.agents li span{color:var(--muted)}
+#pr{left:1580px;top:700px;width:260px;height:80px;padding:16px 20px;display:flex;align-items:center;gap:12px}
+#pr svg{width:28px;height:28px;fill:var(--navy);flex:none}
+#pr .t{margin:0;font-size:18px}
+#pr .meta{margin:2px 0 0;font-size:13px}
+
+/* bottom brackets */
+.br-lb{position:absolute;top:978px;font-family:var(--display);font-size:22px;letter-spacing:.18em;text-transform:uppercase;color:var(--navy);display:flex;align-items:center;justify-content:center;gap:12px}
+#br-dec-lb{left:80px;width:1440px}
+#br-exe-lb{left:1580px;width:260px}
+.pill{font-family:var(--text);font-size:12px;font-weight:500;letter-spacing:.08em;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 8px;background:var(--white)}
+
+/* hint */
+#hint{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);font-size:13px;color:var(--muted);letter-spacing:.04em;background:var(--white);border:1px solid var(--line);border-radius:999px;padding:6px 14px;transition:opacity .4s;pointer-events:none}
+#hint.gone{opacity:0}
+#hint b{font-weight:500;color:var(--navy)}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="cma-logo" viewBox="0 0 536 327">
+    <path fill="#E20101" d="M300.5,35.8c3.8-3,20.5-17.9,28.8-28.1c0.6-0.8,0.2-1.9-0.7-2.2c-43.7-12.7-176-0.4-238.8,94.7 c-0.9,1.3-0.7,1.7,0.3,2.5c21.9-35.5,71.6-63.4,131.7-69.2c24.7-2.4,49.9-0.4,74.7,3.9C298.9,37.6,298.8,37.2,300.5,35.8z"/>
+    <path fill="currentColor" d="M239.3,201.2h17.5l-30.9-75h-22.8l-30.9,75h17l5-13h40L239.3,201.2z M200.3,174.2l13.9-36.3l13.9,36.3 H200.3z"/>
+    <path fill="currentColor" d="M127.5,193.2l19.1-31.9c0.7-1.2,4.4-7.6,5.6-10.1h0.2c-0.2,2.8-0.2,7.8-0.2,10.1v39.9h16v-75h-15.3 l-24.3,40.2l-24.3-40.2H86.2v75h16v-39.9c0-2.3-0.1-7.2-0.2-10.1h0.2c1.2,2.4,4.9,8.9,5.6,10.1l19.1,31.9L127.5,193.2 L127.5,193.2z"/>
+    <path fill="currentColor" d="M492,193.2l19.5-31.9c0.7-1.2,4.5-7.6,5.7-10.1h0.2c-0.2,2.8-0.2,7.8-0.2,10.1v39.9h16v-75h-16.3 l-24.3,40.2l-24.3-40.2h-18.1v75h16v-39.9c0-2.3-0.1-7.2-0.2-10.1h0.2c1.2,2.4,5,8.9,5.7,10.1l19.5,31.9L492,193.2L492,193.2z" />
+    <path fill="currentColor" d="M77.2,179.2h-17v0.5c0,6.1-3.3,7.5-10.6,7.5H33.4c-12.3,0-14.2-1.5-14.2-15.8V155 c0-13.3,1.8-14.8,13.9-14.8H49c7.2,0,10.4,1.3,10.4,7h18.9c0-16.4-6.5-22-26.9-22H30.2c-19.4,0-27,7.3-27,26.2v23.9 c0,18.5,7.5,25.8,26.6,25.8h20.9c20.2,0,26.5-5.5,26.5-21.6V179.2z"/>
+    <path fill="currentColor" d="M354.2,179.2h-17v0.5c0,6.1-3.3,7.5-10.6,7.5h-16.2c-12.3,0-14.2-1.5-14.2-15.8V155 c0-13.3,1.8-14.8,13.9-14.8H326c7.2,0,10.4,1.3,10.4,7h18.9c0-16.4-6.5-22-26.9-22h-21.2c-19.4,0-27,7.4-27,26.3v23.9 c0,18.5,7.5,25.7,26.6,25.7h20.9c20.2,0,26.5-5.5,26.5-21.5V179.2z"/>
+    <path fill="currentColor" d="M423.2,172.2v7.9c0,5.8-3.2,7.1-10.5,7.1h-19.4c-12.2,0-14-1.4-14-15V155c0-13.3,1.8-14.8,13.9-14.8 h18.5c7.2,0,10.4,1.3,10.4,7h18.9c0-16.4-6.5-22-26.9-22h-23.7c-19.4,0-27,7.4-27,26.3V175c0,18.8,7.5,26.2,26.4,26.2h23.2 c20.1,0,26.3-5.6,26.3-21.9v-20.1h-38v13H423.2z"/>
+    <path fill="#E20101" d="M235.5,290.2c-3.8,3-20.5,17.9-28.8,28.1c-0.6,0.8-0.2,1.9,0.7,2.2c43.7,12.7,176,0.3,238.8-94.8 c0.9-1.3,0.7-1.7-0.3-2.5c-21.9,35.5-71.6,63.4-131.7,69.2c-24.7,2.4-49.9,0.4-74.7-3.9C237.1,288.3,237.2,288.7,235.5,290.2z"/>
+  </symbol>
+  <!-- Brand marks: Simple Icons (CC0) -->
+  <symbol id="i-github" viewBox="0 0 24 24"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></symbol>
+  <symbol id="i-openai" viewBox="0 0 24 24"><path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/></symbol>
+  <symbol id="i-airtable" viewBox="0 0 24 24"><path d="M11.992 1.966c-.434 0-.87.086-1.28.257L1.779 5.917c-.503.208-.49.908.012 1.116l8.982 3.558a3.266 3.266 0 0 0 2.454 0l8.982-3.558c.503-.196.503-.908.012-1.116l-8.957-3.694a3.255 3.255 0 0 0-1.272-.257zM23.4 8.056a.589.589 0 0 0-.222.045l-10.012 3.877a.612.612 0 0 0-.38.564v8.896a.6.6 0 0 0 .821.552L23.62 18.1a.583.583 0 0 0 .38-.551V8.653a.6.6 0 0 0-.6-.596zM.676 8.095a.644.644 0 0 0-.48.19C.086 8.396 0 8.53 0 8.69v8.355c0 .442.515.737.908.54l6.27-3.006.307-.147 2.969-1.436c.466-.22.43-.908-.061-1.092L.883 8.138a.57.57 0 0 0-.207-.044z"/></symbol>
+  <symbol id="i-actions" viewBox="0 0 24 24"><path d="M10.984 13.836a.5.5 0 0 1-.353-.146l-.745-.743a.5.5 0 1 1 .706-.708l.392.391 1.181-1.18a.5.5 0 0 1 .708.707l-1.535 1.533a.504.504 0 0 1-.354.146zm9.353-.147l1.534-1.532a.5.5 0 0 0-.707-.707l-1.181 1.18-.392-.391a.5.5 0 1 0-.706.708l.746.743a.497.497 0 0 0 .706-.001zM4.527 7.452l2.557-1.585A1 1 0 0 0 7.09 4.17L4.533 2.56A1 1 0 0 0 3 3.406v3.196a1.001 1.001 0 0 0 1.527.85zm2.03-2.436L4 6.602V3.406l2.557 1.61zM24 12.5c0 1.93-1.57 3.5-3.5 3.5a3.503 3.503 0 0 1-3.46-3h-2.08a3.503 3.503 0 0 1-3.46 3 3.502 3.502 0 0 1-3.46-3h-.558c-.972 0-1.85-.399-2.482-1.042V17c0 1.654 1.346 3 3 3h.04c.244-1.693 1.7-3 3.46-3 1.93 0 3.5 1.57 3.5 3.5S13.43 24 11.5 24a3.502 3.502 0 0 1-3.46-3H8c-2.206 0-4-1.794-4-4V9.899A5.008 5.008 0 0 1 0 5c0-2.757 2.243-5 5-5s5 2.243 5 5a5.005 5.005 0 0 1-4.952 4.998A2.482 2.482 0 0 0 7.482 12h.558c.244-1.693 1.7-3 3.46-3a3.502 3.502 0 0 1 3.46 3h2.08a3.503 3.503 0 0 1 3.46-3c1.93 0 3.5 1.57 3.5 3.5zm-15 8c0 1.378 1.122 2.5 2.5 2.5s2.5-1.122 2.5-2.5-1.122-2.5-2.5-2.5S9 19.122 9 20.5zM5 9c2.206 0 4-1.794 4-4S7.206 1 5 1 1 2.794 1 5s1.794 4 4 4zm9 3.5c0-1.378-1.122-2.5-2.5-2.5S9 11.122 9 12.5s1.122 2.5 2.5 2.5 2.5-1.122 2.5-2.5zm9 0c0-1.378-1.122-2.5-2.5-2.5S18 11.122 18 12.5s1.122 2.5 2.5 2.5 2.5-1.122 2.5-2.5zm-13 8a.5.5 0 1 0 1 0 .5.5 0 0 0-1 0zm2 0a.5.5 0 1 0 1 0 .5.5 0 0 0-1 0zm12 0c0 1.93-1.57 3.5-3.5 3.5a3.503 3.503 0 0 1-3.46-3.002c-.007.001-.013.005-.021.005l-.506.017h-.017a.5.5 0 0 1-.016-.999l.506-.017c.018-.002.035.006.052.007A3.503 3.503 0 0 1 20.5 17c1.93 0 3.5 1.57 3.5 3.5zm-1 0c0-1.378-1.122-2.5-2.5-2.5S18 19.122 18 20.5s1.122 2.5 2.5 2.5 2.5-1.122 2.5-2.5z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 16 16"><path d="M3 8.5 6.5 12 13 4.5"/></symbol>
+</svg>
+
+<div id="stage">
+  <svg id="wires" width="1920" height="1080" viewBox="0 0 1920 1080"></svg>
+
+  <!-- header -->
+  <div class="brand brand-l r on"><span class="wm">T-REX</span><span class="sep"></span><span class="sub">Product agent</span></div>
+  <div class="brand brand-r r on"><svg viewBox="0 0 536 327" role="img" aria-label="CMA CGM"><use href="#cma-logo"/></svg></div>
+
+  <!-- step 0 -->
+  <div id="headline" class="r on">
+    <h1>A product manager that lives inside the product.</h1>
+    <p>What customers <b>say</b>, what they <b>do</b>, and what the business <b>decided</b> — on one board.</p>
+  </div>
+
+  <!-- zone labels -->
+  <div class="zl r" id="zl-in" style="left:80px"><i>01</i>Inputs</div>
+  <div class="zl r" id="zl-agent" style="left:560px"><i>02</i>Product agent</div>
+  <div class="zl r" id="zl-board" style="left:920px"><i>03</i>GitHub Project</div>
+  <div class="zl r" id="zl-del" style="left:1580px"><i>04</i>Delivery</div>
+
+  <!-- inputs -->
+  <div id="inputs">
+  <div class="card r" id="in1">
+    <div class="k"><span class="n">1</span>Customer feedback</div>
+    <div class="chips"><span class="chip">Meridian Brokers</span><span class="chip hot">Blocking</span><span class="chip">From the cockpit</span></div>
+    <p class="quote">We need a document management module. I have asked seven times now. It will weigh on the renewal.</p>
+  </div>
+  <div class="card r" id="in2">
+    <div class="k"><span class="n">2</span>Product signals</div>
+    <div class="chips"><span class="chip">Usage telemetry · 30 days</span><span class="chip">Observed, not declared</span></div>
+    <div class="rows">
+      <span class="l">Documents screen opened</span><span class="v hot">2× in 30 days</span>
+      <span class="l">Same request logged</span><span class="v">7 times</span>
+      <span class="l">Filters drawer abandoned</span><span class="v">61 % · 43 accounts</span>
+    </div>
+  </div>
+  <div class="card r" id="in3">
+    <div class="k"><span class="n">3</span>Business context</div>
+    <div class="chips"><span class="chip"><svg><use href="#i-airtable"/></svg>Airtable · live</span><span class="chip">Quoted word for word</span></div>
+    <ul class="list">
+      <li><b>Board review</b><span>Aug 2026</span></li>
+      <li><b>OKRs Q3</b><span>retention first</span></li>
+      <li><b>ADR-012</b><span>no new modules this quarter</span></li>
+      <li><b>Meridian renewal</b><span>6 weeks · €480k ARR</span></li>
+    </ul>
+  </div>
+  </div>
+
+  <!-- agent -->
+  <div class="card r" id="agent">
+    <div class="logo-row"><svg><use href="#i-openai"/></svg><p class="t">Product agent</p></div>
+    <p class="meta">OpenAI gpt-4o · strict JSON schema · validated</p>
+    <ul class="steps">
+      <li><svg><use href="#i-check"/></svg><span>Reads the feedback against what the account actually does</span></li>
+      <li><svg><use href="#i-check"/></svg><span>Cites the company documents that support, conflict or constrain</span></li>
+      <li><svg><use href="#i-check"/></svg><span>Scores value, effort and a priority out of 100</span></li>
+      <li><svg><use href="#i-check"/></svg><span>Rewrites the ticket with a recommendation</span></li>
+    </ul>
+  </div>
+
+  <!-- board -->
+  <div class="card r" id="board">
+    <div class="bh"><svg><use href="#i-github"/></svg><p class="t">GitHub Projects</p><span class="sub">T-REX product board</span></div>
+    <div class="bb">
+      <div class="col c0"><h4>New</h4></div>
+      <div class="col c1"><h4>Evaluated</h4></div>
+      <div class="col c2"><h4>Approved</h4></div>
+      <div id="ticket">
+        <div class="tk-body">
+          <p class="tk-title">Document management module</p>
+          <p class="tk-meta">Meridian Brokers · Blocking</p>
+          <div class="bds on"><span class="bd">Awaiting evaluation</span></div>
+        </div>
+        <div id="ticket-go"><svg><use href="#i-check"/></svg></div>
+      </div>
+      <svg id="cursor" viewBox="0 0 22 26"><path d="M2 2 L2 19.5 L6.4 15.6 L9.6 23 L12.8 21.6 L9.7 14.3 L15.8 14.3 Z"/></svg>
+    </div>
+  </div>
+  <div id="hitl-lb" class="r">Human in the loop</div>
+
+  <!-- delivery -->
+  <div class="card r" id="delivery">
+    <div class="k"><svg style="width:16px;height:16px;fill:var(--navy)"><use href="#i-actions"/></svg>Delivery agents</div>
+    <ul class="agents">
+      <li><b>Plan</b><span>scopes the change</span></li>
+      <li><b>Patch</b><span>writes the code</span></li>
+      <li><b>Critic</b><span>reviews the diff</span></li>
+    </ul>
+  </div>
+  <div class="card r" id="pr">
+    <svg><use href="#i-github"/></svg>
+    <div><p class="t">Pull request</p><p class="meta">Opened for human review</p></div>
+  </div>
+
+  <!-- bottom brackets -->
+  <div class="br-lb r" id="br-dec-lb">Decision</div>
+  <div class="br-lb r" id="br-exe-lb">Execution <span class="pill">Next</span></div>
+</div>
+
+<div id="hint"><b>Space</b> next &nbsp;·&nbsp; <b>←</b> back &nbsp;·&nbsp; <b>R</b> reset &nbsp;·&nbsp; <b>A</b> autoplay</div>
+
+<script>
+const boot = () => {
+  const $ = s => document.querySelector(s);
+  const $$ = s => [...document.querySelectorAll(s)];
+  const stage = $('#stage'), wires = $('#wires'), ticket = $('#ticket'), cursor = $('#cursor');
+  const NS = 'http://www.w3.org/2000/svg';
+  const q = new URLSearchParams(location.search);
+
+  // ── fit the 1920×1080 stage to the window
+  function fit() {
+    const s = Math.min(innerWidth / 1920, innerHeight / 1080);
+    stage.style.transform = `translate(${(innerWidth - 1920 * s) / 2}px,${(innerHeight - 1080 * s) / 2}px) scale(${s})`;
+  }
+  addEventListener('resize', fit); fit();
+
+  // ── geometry helpers (stage coordinates, independent of the scale)
+  function box(el) {
+    let x = 0, y = 0, n = el;
+    while (n && n !== stage) { x += n.offsetLeft; y += n.offsetTop; n = n.offsetParent; }
+    return { x, y, w: el.offsetWidth, h: el.offsetHeight };
+  }
+  function pt(el, fx, fy) { const b = box(el); return { x: b.x + b.w * fx, y: b.y + b.h * fy }; }
+
+  // ── wires: cubic connector + arrowhead, drawn with stroke-dashoffset
+  function wire(id, a, b, opts = {}) {
+    const g = document.createElementNS(NS, 'g'); g.setAttribute('class', 'wire'); g.id = id;
+    const p = document.createElementNS(NS, 'path');
+    const dx = opts.d ? 0 : b.x - a.x, dy = opts.d ? 0 : b.y - a.y;
+    const d = opts.d || (Math.abs(dy) < 1
+      ? `M${a.x},${a.y} L${b.x},${b.y}`
+      : `M${a.x},${a.y} C${a.x + dx * .5},${a.y} ${b.x - dx * .5},${b.y} ${b.x},${b.y}`);
+    p.setAttribute('d', d); g.appendChild(p); wires.appendChild(g);
+    const L = p.getTotalLength();
+    p.style.strokeDasharray = L; p.style.strokeDashoffset = L;
+    if (!opts.noArrow) {
+      const e = p.getPointAtLength(L), f = p.getPointAtLength(Math.max(0, L - 2));
+      const ang = Math.atan2(e.y - f.y, e.x - f.x) * 180 / Math.PI;
+      const poly = document.createElementNS(NS, 'polygon');
+      poly.setAttribute('points', '0,0 -11,-5 -11,5');
+      poly.setAttribute('transform', `translate(${e.x},${e.y}) rotate(${ang})`);
+      g.appendChild(poly);
+    }
+    if (opts.bracket) g.classList.add('br');
+    return g;
+  }
+  function bracket(id, x1, x2, y, down) {
+    const t = down ? 12 : -12;
+    return wire(id, null, null, { d: `M${x1},${y} v${t} H${x2} v${-t}`, noArrow: true, bracket: true });
+  }
+
+  // ── vertical rhythm: inputs and agent centred on the board's axis (y = 580)
+  const AXIS = 580;
+  ['#inputs', '#agent'].forEach(s => { const e = $(s); e.style.top = Math.round(AXIS - e.offsetHeight / 2) + 'px'; });
+
+  // ── build all wires from the real positions of the blocks
+  const agent = $('#agent'), board = $('#board'), del = $('#delivery'), pr = $('#pr');
+  wire('w1', pt($('#in1'), 1, .5), pt(agent, 0, .30));
+  wire('w2', pt($('#in2'), 1, .5), pt(agent, 0, .50));
+  wire('w3', pt($('#in3'), 1, .5), pt(agent, 0, .70));
+  wire('w4', pt(agent, 1, .5), pt(board, 0, .5));
+  const rows = $$('#delivery .agents li');
+  rows.forEach((li, i) => wire('w' + (5 + i), pt(board, 1, .42 + i * .08), pt(li, 0, .5)));
+  wire('w8', pt(del, .5, 1), pt(pr, .5, 0));
+  const bb = box(board);
+  bracket('hitl-br', bb.x, bb.x + bb.w, 346, false);
+  bracket('br-dec', 80, 1520, 950, true);
+  bracket('br-exe', 1580, 1840, 950, true);
+
+  // ── ticket helpers
+  const cols = $$('#board .col');
+  function colLeft(i) { return cols[i].offsetLeft + 10; }
+  function placeTicket(i) { ticket.style.left = colLeft(i) + 'px'; ticket.style.width = (cols[i].clientWidth - 20) + 'px'; }
+  function placeCursor(i) {
+    ticket.style.width = (cols[i].clientWidth - 20) + 'px';
+    cursor.style.left = (colLeft(i) + ticket.offsetWidth - 34) + 'px';
+    cursor.style.top = (ticket.offsetTop + ticket.offsetHeight - 30) + 'px';
+  }
+  const TK = [
+    `<p class="tk-title">Document management module</p><p class="tk-meta">Meridian Brokers · Blocking</p><div class="bds on"><span class="bd">Awaiting evaluation</span></div>`,
+    `<p class="tk-title">Surface attached documents on rate rows</p><p class="tk-meta">Meridian Brokers · recommend</p><div class="bds"><span class="bd navy">Value · High</span><span class="bd out">Effort · S</span><span class="bd red">Priority · 74</span></div>`
+  ];
+  function setTicket(i) { $('#ticket .tk-body').innerHTML = TK[i]; }
+  function swapTicket(i) {
+    const body = $('#ticket .tk-body');
+    if (instant) { setTicket(i); $('#ticket .bds').classList.add('on'); return; }
+    body.classList.add('swap');
+    later(240, () => { setTicket(i); body.classList.remove('swap'); later(60, () => $('#ticket .bds').classList.add('on')); });
+  }
+
+  // ── scheduler
+  let timers = [], instant = false, step = 0, auto = null;
+  function later(ms, fn) { if (instant) fn(); else timers.push(setTimeout(fn, ms)); }
+  function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+  const on = s => $$(s).forEach(e => { e.classList.remove('off'); e.classList.add('on'); });
+  const off = s => $$(s).forEach(e => { e.classList.remove('on'); e.classList.add('off'); });
+
+  const STEPS = [
+    /* 1 */ () => { off('#headline'); later(250, () => { on('#zl-in'); on('#in1'); }); },
+    /* 2 */ () => on('#in2'),
+    /* 3 */ () => on('#in3'),
+    /* 4 */ () => { on('#w1'); later(120, () => on('#w2')); later(240, () => on('#w3')); later(520, () => { on('#zl-agent'); on('#agent'); }); },
+    /* 5 */ () => { on('#w4'); later(420, () => { on('#zl-board'); on('#board'); }); later(950, () => { placeTicket(0); on('#ticket'); }); },
+    /* 6 */ () => { swapTicket(1); later(1000, () => placeTicket(1)); },
+    /* 7 */ () => {
+      on('#hitl-br'); later(350, () => on('#hitl-lb'));
+      later(700, () => { placeCursor(1); on('#cursor'); });
+      later(1250, () => { placeTicket(2); placeCursor(2); });
+      later(1950, () => { off('#cursor'); on('#ticket-go'); });
+      later(2300, () => { on('#br-dec'); later(300, () => on('#br-dec-lb')); });
+    },
+    /* 8 */ () => {
+      on('#w5'); later(100, () => on('#w6')); later(200, () => on('#w7'));
+      later(520, () => { on('#zl-del'); on('#delivery'); });
+      later(1100, () => on('#w8'));
+      later(1500, () => on('#pr'));
+      later(1900, () => { on('#br-exe'); later(300, () => on('#br-exe-lb')); });
+    }
+  ];
+
+  function reset() {
+    clearTimers(); stage.classList.add('instant');
+    $$('.on,.off').forEach(e => { if (!e.classList.contains('brand')) e.classList.remove('on', 'off'); });
+    $('#headline').classList.add('on');
+    setTicket(0); ticket.style.left = colLeft(0) + 'px'; ticket.style.width = (cols[0].clientWidth - 20) + 'px';
+    step = 0; stage.offsetHeight; stage.classList.remove('instant');
+  }
+  function run(n, inst) {
+    instant = inst; if (inst) stage.classList.add('instant');
+    STEPS[n - 1]();
+    if (inst) { stage.offsetHeight; stage.classList.remove('instant'); }
+    instant = false;
+  }
+  function next() { if (step >= STEPS.length) return; step++; run(step, false); }
+  function goto(n, allInstant) {
+    n = Math.max(0, Math.min(STEPS.length, n)); reset();
+    for (let i = 1; i <= n; i++) run(i, allInstant || i < n);
+    step = n;
+  }
+  function toggleAuto() {
+    if (auto) { clearInterval(auto); auto = null; return; }
+    next(); auto = setInterval(() => { next(); if (step >= STEPS.length) { clearInterval(auto); auto = null; } }, 3000);
+  }
+
+  // ── keys
+  const hint = $('#hint');
+  addEventListener('keydown', e => {
+    if (e.metaKey || e.ctrlKey) return;
+    hint.classList.add('gone');
+    if (e.code === 'Space' || e.key === 'ArrowRight') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); goto(step - 1, true); }
+    else if (e.key === 'r' || e.key === 'R') goto(0, true);
+    else if (e.key === 'a' || e.key === 'A') toggleAuto();
+  });
+  addEventListener('click', () => { hint.classList.add('gone'); next(); });
+
+  // ── boot
+  placeTicket(0);
+  if (q.has('step')) { hint.remove(); goto(+q.get('step'), true); }
+  else if (q.has('auto')) { hint.remove(); setTimeout(toggleAuto, 1200); }
+  else setTimeout(() => hint.classList.add('gone'), 5000);
+  window.WF = { next, goto, reset, toggleAuto };
+};
+// Measure and wire once the web fonts are in (fallback after 1.5 s so the page never stays blank).
+Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 1500))]).then(boot);
+</script>
+</body>
+</html>

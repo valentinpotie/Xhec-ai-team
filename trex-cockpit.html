@@ -508,11 +508,34 @@
 .mi-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;align-content:start}
 .mi-grid-route{grid-column:1/span 2;grid-row:1}
 .mi-grid-lt{grid-column:3;grid-row:1}
-.mi-grid-buy{grid-column:1;grid-row:2}
-.mi-grid-vol{grid-column:2;grid-row:2}
-.mi-grid-sell{grid-column:1;grid-row:3}
-.mi-grid-map{grid-column:3;grid-row:2/span 3}
-.mi-grid-extra{grid-column:2;grid-row:3;overflow:hidden}
+.mi-grid-track{grid-column:1/span 2;grid-row:2}
+.mi-grid-buy{grid-column:1;grid-row:3}
+.mi-grid-vol{grid-column:2;grid-row:3}
+.mi-grid-sell{grid-column:1;grid-row:4}
+.mi-grid-map{grid-column:3;grid-row:2/span 4}
+.mi-grid-extra{grid-column:2;grid-row:4;overflow:hidden}
+
+/* ── Shipment tracking card ── */
+.mi-track-top{display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap}
+.mi-track-ids{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px 20px;flex:1;min-width:260px}
+.mi-track-id-l{display:block;font-size:11px;color:var(--text-muted);margin-bottom:3px}
+.mi-track-id-v{display:block;font-size:14px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.mi-track-eta{border-left:1px solid var(--border);padding-left:20px;min-width:150px}
+.mi-track-eta-l{font-size:11px;color:var(--text-muted)}
+.mi-track-eta-v{font-size:20px;font-weight:800;letter-spacing:-.01em;color:var(--text);line-height:1.2;margin-top:2px}
+.mi-track-eta-n{font-size:11px;margin-top:3px;color:var(--green);font-weight:600}
+.mi-track-eta-n.late{color:var(--red)}
+.mi-track-steps{position:relative;display:flex;margin-top:26px;padding-top:2px}
+.mi-track-steps::before{content:"";position:absolute;left:6%;right:6%;top:7px;height:2px;background:var(--border)}
+.mi-track-steps i{position:absolute;left:6%;top:7px;height:2px;background:var(--dkt-blue);transition:width .4s cubic-bezier(.2,.8,.2,1)}
+.mi-ms{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;text-align:center;gap:9px;min-width:0}
+.mi-ms-dot{width:14px;height:14px;border-radius:50%;background:var(--white);border:2px solid var(--border);box-sizing:border-box}
+.mi-ms.done .mi-ms-dot{background:var(--dkt-blue);border-color:var(--dkt-blue)}
+.mi-ms.now .mi-ms-dot{border-color:var(--dkt-blue);outline:3px solid var(--dkt-blue-light)}
+.mi-ms-t{font-size:11px;font-weight:600;color:var(--text-muted);line-height:1.3;padding:0 4px}
+.mi-ms.done .mi-ms-t,.mi-ms.now .mi-ms-t{color:var(--text)}
+.mi-ms-d{font-size:10.5px;color:var(--text-muted);font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion: reduce){.mi-track-steps i{transition:none}}
 
 /* MI Route Card */
 .mi-route-card{border:2px solid var(--dkt-blue);border-radius:var(--radius-md);padding:16px;display:flex;flex-direction:column;gap:24px;height:100%}
@@ -606,7 +629,7 @@
     top: 50%;
     right: 0;
     transform: translateY(-50%);
-    z-index: 99;
+    z-index: 101;          /* above #MI_PAGE (100), below the drawer and its backdrop */
     background: var(--dkt-blue);
     color: var(--white);
     border: none;
@@ -762,7 +785,7 @@
     </div>
     <!-- User -->
     <div class="sb-user">
-      <div class="sb-av" id="AC_AV">MB</div>
+      <div class="sb-av" id="AC_AV">DC</div>
       <select class="ac-select" id="AC_SEL" onchange="AG.switchAccount(this.value)"></select>
       <button class="sb-logout" title="Déconnexion">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -2165,6 +2188,66 @@ function greatCircleArc(a, b, n) {
   return pts;
 }
 
+const ICO_TRACK = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 17h2l1.5-4.5A2 2 0 0 1 7.4 11H13v6h3"/><path d="M16 17h6v-4l-3-3h-3v7z"/><circle cx="7" cy="18" r="1.6"/><circle cx="18" cy="18" r="1.6"/></svg>';
+
+const BOX_PREFIX = { 'CMA CGM': 'CMAU', 'MAERSK': 'MSKU', 'MSC': 'MSCU', 'HAPAG-LLOYD': 'HLXU', 'COSCO SHIPPING': 'CSNU', 'KUEHNE & NAGEL': 'KNLU', 'DB SCHENKER': 'DBSU', 'GEODIS': 'GEOU' };
+const VESSELS = {
+  'CMA CGM': ['CMA CGM JACQUES SAADE', 'CMA CGM BOUGAINVILLE', 'CMA CGM MARCO POLO'],
+  'MAERSK': ['MAERSK SENTOSA', 'MADRID MAERSK', 'MAERSK HANGZHOU'],
+  'MSC': ['MSC GULSUN', 'MSC ISABELLA', 'MSC OSCAR'],
+  'HAPAG-LLOYD': ['BERLIN EXPRESS', 'HAMBURG EXPRESS'],
+  'COSCO SHIPPING': ['COSCO SHIPPING UNIVERSE', 'COSCO SHIPPING NEBULA']
+};
+const STEP_SETS = {
+  Sea:  ['Gate in', 'Loaded', 'Departed', 'In transit', 'Discharged', 'Delivered'],
+  Air:  ['Received', 'Loaded', 'Departed', 'In transit', 'Arrived', 'Delivered'],
+  Road: ['Picked up', 'In transit', 'At hub', 'Out for delivery', 'Delivered'],
+  Rail: ['Loaded', 'Departed', 'In transit', 'Arrived', 'Delivered']
+};
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const fmtDay = d => d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+const addDays = (d, n) => new Date(d.getTime() + n * 86400000);
+
+// Everything below is derived from the row id, so a leg always shows the same shipment.
+function shipmentOf(r, dt) {
+  const seed = (n) => { const x = Math.sin(r.id * 97.13 + n * 31.7) * 10000; return x - Math.floor(x); };
+  const transit = (dt && dt.lt && dt.lt.c) || 30;
+  const box = String(Math.floor(seed(1) * 9000000) + 1000000);
+  const steps = STEP_SETS[r.mot] || STEP_SETS.Sea;
+  const doneCount = Math.max(1, Math.min(steps.length, 1 + Math.floor(seed(2) * (steps.length - 1))));
+  const elapsed = Math.round(transit * (doneCount - 1) / (steps.length - 1));
+  const today = new Date(2026, 8, 12);
+  const etd = addDays(today, -elapsed);
+  const slip = seed(3) > 0.72 ? 1 + Math.floor(seed(4) * 3) : 0;
+  const eta = addDays(etd, transit + slip);
+  const delivered = doneCount === steps.length;
+  const fleet = VESSELS[r.c];
+
+  return {
+    container: (BOX_PREFIX[r.c] || 'TREX') + ' ' + box.slice(0, 6) + '-' + box.slice(6),
+    booking: 'BK' + (2026000 + r.id * 37),
+    bl: (BOX_PREFIX[r.c] || 'TRX').slice(0, 3) + 'BL' + (480000 + r.id * 913),
+    vesselLabel: r.mot === 'Sea' ? 'Vessel' : r.mot === 'Air' ? 'Flight' : 'Carrier unit',
+    vessel: r.mot === 'Sea' ? (fleet ? fleet[r.id % fleet.length] : r.c + ' EXPRESS')
+          : r.mot === 'Air' ? 'AF' + (1000 + r.id * 7)
+          : 'TRK-' + (100 + r.id),
+    voyage: String.fromCharCode(65 + (r.id % 26)) + (100 + r.id * 3) + (r.mot === 'Sea' ? 'W' : 'E'),
+    etd: fmtDay(etd),
+    eta: fmtDay(eta),
+    late: slip > 0 && !delivered,
+    status: delivered ? 'Delivered' : slip > 0 ? 'Delayed' : 'On schedule',
+    note: delivered ? 'Arrived ' + fmtDay(eta)
+        : slip > 0 ? slip + ' day' + (slip > 1 ? 's' : '') + ' behind schedule'
+        : 'On schedule, ' + Math.max(0, transit - elapsed) + ' days to go',
+    progress: Math.round(88 * (doneCount - 1) / (steps.length - 1)),
+    steps: steps.map((label, i) => ({
+      label,
+      state: i < doneCount - 1 ? 'done' : i === doneCount - 1 ? 'done now' : '',
+      date: i <= doneCount - 1 ? fmtDay(addDays(etd, Math.round(transit * i / (steps.length - 1)))) : ''
+    }))
+  };
+}
+
 function renderMI() {
   if (!MI_ROW) return;
   const r = MI_ROW;
@@ -2336,6 +2419,36 @@ function renderMI() {
     </div>
   </div>`;
 
+  // ── Shipment tracking card ──
+  const sh = shipmentOf(r, dt);
+  const trackCard = `<div class="mi-sec">
+    <div class="mi-sec-hd">
+      <span class="mi-sec-icon">${ICO_TRACK}</span>
+      <span class="mi-sec-title">Shipment tracking</span>
+      <span class="sticker ${sh.late ? 'sticker-inactive' : 'sticker-active'}" style="margin-left:auto">${sh.status}</span>
+    </div>
+    <div class="mi-sec-body">
+      <div class="mi-track-top">
+        <div class="mi-track-ids">
+          <div><span class="mi-track-id-l">Container</span><span class="mi-track-id-v">${sh.container}</span></div>
+          <div><span class="mi-track-id-l">Booking</span><span class="mi-track-id-v">${sh.booking}</span></div>
+          <div><span class="mi-track-id-l">Bill of lading</span><span class="mi-track-id-v">${sh.bl}</span></div>
+          <div><span class="mi-track-id-l">${sh.vesselLabel}</span><span class="mi-track-id-v">${sh.vessel}</span></div>
+          <div><span class="mi-track-id-l">Voyage</span><span class="mi-track-id-v">${sh.voyage}</span></div>
+          <div><span class="mi-track-id-l">Departed</span><span class="mi-track-id-v">${sh.etd}</span></div>
+        </div>
+        <div class="mi-track-eta">
+          <div class="mi-track-eta-l">Estimated arrival</div>
+          <div class="mi-track-eta-v">${sh.eta}</div>
+          <div class="mi-track-eta-n${sh.late ? ' late' : ''}">${sh.note}</div>
+        </div>
+      </div>
+      <div class="mi-track-steps"><i style="width:${sh.progress}%"></i>
+        ${sh.steps.map(m => `<div class="mi-ms ${m.state}"><span class="mi-ms-dot"></span><span class="mi-ms-t">${m.label}</span><span class="mi-ms-d">${m.date}</span></div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+
   // ── Map ──
   const mapCard = `<div class="mi-map-wrap" id="MI_MAP_WRAP">
     <button class="mi-map-fs-btn" onclick="toggleMapFullscreen()" title="Plein écran">
@@ -2350,6 +2463,7 @@ function renderMI() {
   document.getElementById('MI_BODY').innerHTML = `<div class="mi-grid">
     <div class="mi-grid-route">${routeCard}</div>
     <div class="mi-grid-lt">${ltCard}</div>
+    <div class="mi-grid-track">${trackCard}</div>
     <div class="mi-grid-buy">${buyCard}</div>
     <div class="mi-grid-vol">${volCard}</div>
     ${extraCard}
@@ -2382,7 +2496,7 @@ function renderMI() {
       <div class="sb-item"><div class="sb-item-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div><span class="sb-item-label">Import Tender &amp; Cost</span></div>
     </div>
     <div class="sb-user">
-      <div class="sb-av" id="AC_AV2">MB</div>
+      <div class="sb-av" id="AC_AV2">DC</div>
       <span class="sb-username">VPOTIE17</span>
       <button class="sb-logout" title="Déconnexion"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
     </div>
@@ -3275,7 +3389,7 @@ function toggleFeedbackLayoutMode() {
   </button>
 <style>
   /* ── Feedback drawer (customer) + operator view — built from the cockpit's own primitives ── */
-  .drawer-feedback { width: 520px !important; }
+  .drawer-feedback { width: 560px !important; }
   .drawer-feedback.ops { width: 640px !important; }
   .ac-select { flex:1; min-width:0; appearance:none; -webkit-appearance:none; border:none; background:transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23616161' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 8px center; padding:6px 26px 6px 8px; border-radius:var(--radius-sm); font-family:inherit; font-size:13px; font-weight:500; color:var(--text); cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:background .12s; }
   .ac-select:hover { background-color:var(--bg); }
@@ -3286,11 +3400,54 @@ function toggleFeedbackLayoutMode() {
   .ag-sec { padding:18px 20px; border-bottom:1px solid var(--border); }
   .ag-sec:last-child { border-bottom:none; }
   .ag-lbl { font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--text-secondary); margin-bottom:10px; display:block; }
-  .ag-q { font-size:15px; font-weight:700; letter-spacing:-.01em; line-height:1.3; color:var(--text); margin-bottom:12px; }
-  .ag-body textarea.text-input { min-height:120px; resize:vertical; line-height:1.5; font-size:13px; padding:12px; }
   .ag-body .text-input:focus-visible { outline:2px solid var(--dkt-blue); outline-offset:1px; border-color:var(--dkt-blue); }
+
+  /* Customer view: same idiom as the Filters drawer (bordered rows, label column, pill footer).
+     The question is the hero, set like the cockpit's page titles. One red mark, the brand rule. */
+  .ag-body { display:flex; flex-direction:column; }
+  #AG_CUST:not([hidden]) { display:flex; flex-direction:column; flex:1 0 auto; }
+  .ag-cust { display:flex; flex-direction:column; flex:1 0 auto; }
+  .ag-hero { padding:28px 24px 24px; border-bottom:1px solid var(--border); }
+  .ag-hero h2 { font-family:var(--font-display); font-size:32px; font-weight:700; letter-spacing:.02em; text-transform:uppercase; line-height:1.02; color:var(--dkt-blue-hover); margin:0; }
+  .ag-rule { width:32px; height:3px; background:var(--cma-red); margin:14px 0 12px; }
+  .ag-hero p { font-size:13.5px; line-height:1.55; color:var(--text-secondary); max-width:44ch; margin:0; }
+  .ag-write { padding:20px 24px; border-bottom:1px solid var(--border); }
+  .ag-row { display:flex; align-items:flex-start; padding:16px 24px; border-bottom:1px solid var(--border); }
+  .ag-row-l { width:124px; flex-shrink:0; padding-right:16px; padding-top:5px; }
+  .ag-row-c { flex:1; min-width:0; }
+  .ag-from { display:flex; align-items:center; gap:10px; }
+  .ag-from .sb-av { width:32px; height:32px; font-size:11px; }
+  .ag-from-n { font-size:13px; font-weight:600; color:var(--text); line-height:1.3; }
+  .ag-from-m { font-size:12px; color:var(--text-secondary); line-height:1.3; margin-top:1px; }
+  .ag-foot { margin-top:auto; padding:14px 24px; position:sticky; bottom:0; background:var(--white); }
+  .ag-foot .btn-prim:disabled { opacity:.55; cursor:default; }
+
+  /* The composer: one bordered field with its own toolbar inside. Borders only, no shadow. */
+  .ag-comp { border:1px solid var(--border); border-radius:var(--radius-md); background:#fff; overflow:hidden; transition:border-color .15s; }
+  .ag-comp:focus-within { border-color:var(--dkt-blue); outline:1px solid var(--dkt-blue); outline-offset:-2px; }
+  .ag-ta { display:block; width:100%; border:0; background:transparent; resize:none; padding:16px 18px; min-height:160px; font-family:inherit; font-size:14px; line-height:1.6; color:var(--text); }
+  .ag-ta:focus { outline:none; }
+  .ag-ta::placeholder { color:var(--text-muted); }
+  .ag-bar { display:flex; align-items:center; gap:10px; min-height:50px; padding:8px 12px; border-top:1px solid var(--border); background:var(--bg); }
+  .ag-mic { display:inline-flex; align-items:center; gap:7px; height:32px; padding:0 14px 0 11px; border:1px solid var(--border); border-radius:999px; background:var(--white); font-family:inherit; font-size:12px; font-weight:600; color:var(--text); cursor:pointer; flex-shrink:0; }
+  .ag-mic:hover { border-color:var(--dkt-blue); color:var(--dkt-blue); }
+  .ag-spacer { flex:1; min-width:0; }
+  .ag-count { font-size:11px; color:var(--text-muted); font-variant-numeric:tabular-nums; flex-shrink:0; }
+  .ag-vmsg { font-size:12px; color:var(--red); line-height:1.4; min-width:0; }
+  .ag-vwait { font-size:12px; color:var(--text-secondary); }
+
+  /* Recording: a pulsing dot, the elapsed time, and the last two seconds of your voice. */
+  .ag-dot { width:8px; height:8px; border-radius:50%; background:var(--red); flex-shrink:0; animation:ag-pulse 1.3s ease-in-out infinite; }
+  .ag-time { font-size:12px; font-weight:600; color:var(--text); font-variant-numeric:tabular-nums; flex-shrink:0; }
+  .ag-wave { flex:1; display:flex; align-items:center; gap:2px; height:24px; min-width:0; overflow:hidden; }
+  .ag-wave i { flex:1 1 0; min-width:0; height:100%; border-radius:1px; background:var(--dkt-blue); transform:scaleY(.08); transition:transform 90ms linear; }
+  .ag-stop { height:31px; padding:0 15px; border:1px solid var(--dkt-blue); border-radius:999px; background:var(--dkt-blue); color:#fff; font-family:inherit; font-size:12px; font-weight:600; cursor:pointer; flex-shrink:0; }
+  .ag-stop:hover { filter:brightness(1.25); }
+  @keyframes ag-pulse { 0%,100% { opacity:1; } 50% { opacity:.2; } }
+
   .ag-imp { display:flex; gap:6px; flex-wrap:wrap; }
-  .ag-imp .chip { margin:0; }
+  .ag-imp .chip { margin:0; padding:6px 14px; }
+  .ag-imp-hint { font-size:12px; color:var(--text-muted); line-height:1.45; margin-top:9px; min-height:17px; }
   .ag-actions { display:flex; align-items:center; gap:12px; margin-top:16px; }
   .ag-actions .btn-prim, .ag-actions .btn-sec { flex:0 0 auto; padding:0 20px; height:38px; font-size:13px; }
   .ag-actions .btn-prim:disabled { opacity:.5; cursor:default; }
@@ -3298,13 +3455,21 @@ function toggleFeedbackLayoutMode() {
   .ag-body button { transition:background .1s, transform 80ms ease-out; }
   .ag-body button:focus-visible, .ag-body summary:focus-visible { outline:2px solid var(--dkt-blue); outline-offset:2px; }
   .ag-hint { font-size:12px; color:var(--text-muted); line-height:1.5; }
-  .ag-err { margin-top:12px; padding:10px 12px; border-radius:var(--radius-sm); background:var(--red-bg); color:var(--red); font-size:12px; line-height:1.5; }
+  .ag-err { margin-top:12px; padding:10px 12px; border-left:3px solid var(--red); border-radius:0 var(--radius-sm) var(--radius-sm) 0; background:var(--red-bg); color:var(--red); font-size:12.5px; line-height:1.5; }
 
-  .ag-ok { text-align:center; padding:48px 24px 40px; }
-  .ag-ok-ic { width:48px; height:48px; border-radius:50%; background:var(--green-bg); color:var(--green); display:inline-flex; align-items:center; justify-content:center; margin-bottom:14px; }
-  .ag-ok h3 { font-size:17px; font-weight:700; letter-spacing:-.01em; margin-bottom:6px; }
-  .ag-ok p { font-size:13px; color:var(--text-secondary); line-height:1.5; max-width:340px; margin:0 auto; }
-  .ag-ok .ag-actions { justify-content:center; margin-top:22px; }
+  /* After sending: what happens next, as the sequence it is. The first step is already done. */
+  .ag-steps { list-style:none; margin:0; padding:24px 24px 4px; }
+  .ag-step { position:relative; display:grid; grid-template-columns:24px 1fr auto; column-gap:12px; padding-bottom:22px; }
+  .ag-step::before { content:""; position:absolute; left:11px; top:26px; bottom:-2px; width:2px; background:var(--border); }
+  .ag-step:last-child::before { display:none; }
+  .ag-step-dot { width:24px; height:24px; border-radius:50%; border:2px solid var(--border); background:var(--white); display:flex; align-items:center; justify-content:center; color:#fff; }
+  .ag-step.done .ag-step-dot { background:var(--dkt-blue); border-color:var(--dkt-blue); }
+  .ag-step.next .ag-step-dot { border-color:var(--dkt-blue); }
+  .ag-step.next .ag-step-dot i { width:8px; height:8px; border-radius:50%; background:var(--dkt-blue); }
+  .ag-step-t { font-size:13.5px; font-weight:600; color:var(--text); line-height:24px; }
+  .ag-step.next .ag-step-t { color:var(--dkt-blue-hover); }
+  .ag-step-w { font-size:12px; color:var(--text-muted); line-height:24px; font-variant-numeric:tabular-nums; }
+  .ag-step-d { grid-column:2 / span 2; font-size:12.5px; color:var(--text-secondary); line-height:1.5; margin-top:3px; max-width:46ch; }
 
   .ag-acct { display:flex; align-items:center; gap:10px; padding:10px 20px; background:var(--bg); border-bottom:1px solid var(--border); }
   .ag-acct-n { font-size:13px; font-weight:600; color:var(--text); }
@@ -3334,6 +3499,7 @@ function toggleFeedbackLayoutMode() {
   .ag-docs { margin:10px 0 0; padding:0; list-style:none; font-size:12px; line-height:1.7; }
   .ag-docs .t { color:var(--text-muted); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px; margin-left:6px; }
 
+  .ag-file-warn { background:var(--red-bg); color:var(--red); font-size:12px; line-height:1.6; padding:12px 20px; border-bottom:1px solid var(--border); }
   .ag-enter { animation:ag-in 280ms cubic-bezier(.2,.8,.2,1) both; }
   @keyframes ag-in { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
   @keyframes ag-spin { to { transform:rotate(360deg); } }
@@ -3341,6 +3507,8 @@ function toggleFeedbackLayoutMode() {
     .ag-enter { animation:ag-fade 200ms ease both; }
     @keyframes ag-fade { from { opacity:0; } to { opacity:1; } }
     .ag-spin { animation:none; }
+    .ag-dot { animation:none; }
+    .ag-wave i { transition:none; }
     .ag-body button:active { transform:none; }
   }
 </style>
@@ -3360,37 +3528,51 @@ const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&':'&am
 // ── Accounts the feedback comes from ────────────────────────────────
 const ACCOUNTS = {
   broker: {
-    name: 'Meridian Brokers', initials: 'MB', plan: 'Enterprise',
+    name: 'Decathlon', initials: 'DC', plan: 'Enterprise',
     meta: 'Enterprise · 38 seats · Renewal in 6 weeks',
-    context: 'Freight broker, 38 seats, largest account. Contract up for renewal in 6 weeks.'
+    context: 'Sporting-goods retailer, 38 seats, largest shipper account. Contract up for renewal in 6 weeks.'
   },
   shipper: {
-    name: 'Lyon Textile Co.', initials: 'LT', plan: 'Growth',
+    name: 'Sézane', initials: 'SZ', plan: 'Growth',
     meta: 'Growth · 1 of 43 similar accounts · No request ever filed',
-    context: 'Mid-size shipper on the Growth plan, one of 43 similar accounts. Has never filed a single feature request.'
+    context: 'Fashion brand shipping from Asia, Growth plan, one of 43 similar accounts. Has never filed a single feature request.'
   }
 };
 let AC = 'broker';
 
 // ── The rate table, rendered from a column list ─────────────────────
+// UN/LOCODE → readable city name, for the ports used in ROWS. Falls back to the
+// raw code if a port isn't listed. Code kept as a title tooltip for reference.
+const LOCODE_CITY = {
+  FRMRS:'Marseille (FR)',   MACAS:'Casablanca (MA)', CNSHA:'Shanghai (CN)',
+  BEANR:'Antwerp (BE)',     TNSUS:'Sousse (TN)',      TRAMR:'Ambarli (TR)',
+  BDCGP:'Chittagong (BD)',  INBOM:'Mumbai (IN)',      CNXMN:'Xiamen (CN)',
+  CNCAN:'Guangzhou (CN)',   FRCDG:'Paris–CDG (FR)',   FRLIL:'Lille (FR)',
+  VNSGN:'Ho Chi Minh City (VN)', NLRTM:'Rotterdam (NL)', IDJKT:'Jakarta (ID)',
+  THBKK:'Bangkok (TH)',     CNNBO:'Ningbo (CN)',      FRLEH:'Le Havre (FR)',
+  DEHAM:'Hamburg (DE)',     FRPAR:'Paris (FR)',       ESBCN:'Barcelona (ES)',
+  LKCMB:'Colombo (LK)'
+};
+const cityFor = code => `<span title="${code}">${LOCODE_CITY[code] || code}</span>`;
+
 const COLUMNS = [
   { id:'status',  label:'Status',             w:'8%'  },
   { id:'mot',     label:'MoT',                w:'8%'  },
-  { id:'pol',     label:'Point of Loading',   w:'10%' },
-  { id:'pod',     label:'Point of Discharge', w:'10%' },
+  { id:'pol',     label:'Point of Loading',   w:'12%' },
+  { id:'pod',     label:'Point of Discharge', w:'12%' },
   { id:'carrier', label:'Carrier',            w:'10%' },
   { id:'eq',      label:'Equipment',          w:'8%'  },
   { id:'loading', label:'Loading',            w:'7%'  },
   { id:'com',     label:'Commodity',          w:'7%'  },
-  { id:'freight', label:'Freight',            w:'9%', right:1 },
-  { id:'thco',    label:'THC Orig.',          w:'9%', right:1 },
-  { id:'thcd',    label:'THC Dest.',          w:'9%', right:1 }
+  { id:'freight', label:'Freight',            w:'8%', right:1 },
+  { id:'thco',    label:'THC Orig.',          w:'8%', right:1 },
+  { id:'thcd',    label:'THC Dest.',          w:'8%', right:1 }
 ];
 const CELL = {
   status:  r => r.a ? '<span class="sticker sticker-active">Active</span>' : '<span class="sticker sticker-inactive">Inactive</span>',
   mot:     r => `<span class="mot-pill">${(typeof ICO !== 'undefined' && ICO[r.mot]) || ''}${r.mot}</span>`,
-  pol:     r => r.pol,
-  pod:     r => r.pod,
+  pol:     r => cityFor(r.pol),
+  pod:     r => cityFor(r.pod),
   carrier: r => `<span style="font-weight:600">${r.c}</span>`,
   eq:      r => `Container ${r.eq}`,
   loading: r => r.lt,
@@ -3485,17 +3667,17 @@ wrap('bc_openDoc', d => track('document_opened', { doc: d }));
 // ── What the product already knew before today ──────────────────────
 const HISTORY = {
   broker: {
-    window: 'last 30 days — Meridian Brokers, 38 seats',
+    window: 'last 30 days — Decathlon, 38 seats',
     written_requests_for_a_document_module: 7,
     span_of_those_requests: 'six months, the latest one this week, flagged as weighing on the renewal',
     documents_screen_sessions: 2,
     rate_rows_opened: 412,
     filter_drawer_opened: 96,
     filter_drawer_abandoned: 11,
-    documents_already_attached_to_their_rates: '1284 files, reachable today only from the Import Tender & Cost screen'
+    documents_already_attached_to_their_rates: '1284 shipment documents (bills of lading, packing lists, customs files), reachable today only from the Import Tender & Cost screen — never on the shipment page'
   },
   cohort: {
-    window: 'last 30 days — the 43 accounts on the Growth plan, Lyon Textile Co. among them',
+    window: 'last 30 days — the 43 accounts on the Growth plan, Sézane among them',
     accounts: 43,
     accounts_reaching_the_filter_drawer_every_day: 43,
     clicks_to_apply_one_filter: 6,
@@ -3529,7 +3711,17 @@ const BUSINESS_CONTEXT = {
 // ── Business context: the company's own documents, read at runtime ──
 let DOCS = {};            // id -> { title, kind, text }
 let docsSource = 'none';  // 'files' | 'fallback'
-const norm = s => String(s).replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"').replace(/\s+/g, ' ').trim().toLowerCase();
+// A quote must contain the document's words, in order. Dashes, quote marks, ellipses and spacing
+// are rendered differently by the model, so they are normalised; the wording itself is not.
+const norm = s => String(s)
+  .replace(/[\u2018\u2019\u02bc]/g, "'")
+  .replace(/[\u201c\u201d]/g, '"')
+  .replace(/[\u2013\u2014\u2212]/g, '-')
+  .replace(/\u2026/g, '...')
+  .replace(/\u00a0/g, ' ')
+  .replace(/\s+/g, ' ')
+  .replace(/^[\s"'.,;:-]+|[\s"'.,;:-]+$/g, '')
+  .trim().toLowerCase();
 
 // Airtable first (live company data), then context/ files, then the embedded fallback.
 async function loadFromAirtable() {
@@ -3624,18 +3816,31 @@ const SYSTEM_PROMPT = [
   'Ground every claim in a specific number taken from the telemetry you were given. Never invent a number.',
   'value: High moves a quarter goal for many accounts; Medium is useful but not decisive; Low is marginal or serves one account only.',
   'effort: XS = days, S = about a week, M = two to three weeks, L = a month or more, XL = a quarter. Two developers are available.',
-  'Also score 1 to 10: reach (accounts touched), impact (movement on quarter goals), confidence (strength of the evidence), business_fit (alignment with the board directive), effort (10 = a full quarter).',
-  'The business context is given as the company\'s own documents. Relate the feedback to them explicitly: which decisions support it, which conflict with it, which constrain how it can be done. Quote each document LITERALLY — copy a short passage word for word; the validator checks the quote against the document.',
+  'title, effort, effort_rationale and scores.effort all describe what you RECOMMEND, not what the customer asked for. If you decline the request, size your counter-proposal.',
+  'How urgently a customer phrased it tells you about that customer, not about priority. A request one customer calls "nice to have" that matches a key result word for word, and that the telemetry shows the whole base hitting every day, outranks an urgent request that serves one account.',
+  'A cohort that files no requests while its telemetry shows the same failure every day is resigned, not satisfied. Never write that silence means satisfaction.',
+  'Every number you write must appear in the telemetry or the documents you were given. If you do not have a number for something, do not mention it.',
+  'Score 1 to 10, and keep the scores consistent with your own evidence:',
+  '- reach: the share of the customer base your recommendation serves. 1 = a single account, 10 = the whole base. If the evidence says 43 of 45 accounts hit the problem, reach is 9 or 10.',
+  '- impact: how far shipping it moves a stated key result. 10 = it closes a key result outright.',
+  '- confidence: how strong the evidence is. Cohort-wide telemetry is stronger than one customer\'s opinion.',
+  '- business_fit: alignment with the board directive and the OKRs. 10 = it is literally what a key result asks for.',
+  '- effort: the same size you gave above. XS = 1, S = 2, M = 4, L = 7, XL = 10.',
+  'The business context is given as the company\'s own documents. Relate the feedback to them explicitly: which decisions support it, which conflict with it, which constrain how it can be done. Quote each document LITERALLY — copy a whole sentence word for word, from its first word to its full stop. Never shorten a quote with an ellipsis, never write "..." inside it: the quote is printed in the report as proof, and a truncated one proves nothing. The validator checks every quote against the document and rejects it otherwise.',
   'Take effort from the sizing scale and the pre-study sizings in the capacity document. Take revenue at stake from the ARR and renewal data in the accounts document.',
   'Reply with JSON only, no prose, exactly:',
   '{ "decision": "recommend" | "decline", "title": "imperative ticket title, max 80 chars", "customer_need": "1-2 sentences: what the customer actually needs, beneath the words", "value": "High|Medium|Low", "value_rationale": "one sentence with a number", "effort": "XS|S|M|L|XL", "effort_rationale": "one sentence naming what it touches and the sizing it relies on", "revenue_at_stake": "max 60 chars, e.g. EUR 480k renewal vs EUR 774k cohort", "evidence": ["2 to 4 short facts, each with a number from the telemetry"], "context_used": [ { "doc": "<document id exactly as given>", "quote": "literal passage, 8 to 200 chars", "effect": "supports" | "conflicts" | "constrains", "how": "one sentence: how it shaped the evaluation" } ], "recommendation": "2 sentences: what to build, and what NOT to build if the request should be turned down", "scores": { "reach": 1, "impact": 1, "confidence": 1, "business_fit": 1, "effort": 1 } }',
   'context_used has 2 to 5 entries and cites at least one decision or objectives document.',
+  'Every key above is required, "scores" included — a reply missing any of them is rejected.',
   'Use "decline" when the request should not be built as asked — the ticket then carries your counter-proposal.'
 ].join('\n');
 
+// Weighted, not multiplicative: a single-account ticket with a renewal at stake must still
+// be able to rank high. Effort adjusts the result rather than dividing it away.
 function priority(s) {
-  const raw = (s.reach * s.impact * s.confidence * s.business_fit) / s.effort;
-  return Math.round(100 * raw / (raw + 300));
+  const merit = 0.35 * s.impact + 0.30 * s.business_fit + 0.20 * s.reach + 0.15 * s.confidence;  // 1..10
+  const ease = 1.15 - 0.05 * s.effort;                                                            // 1.10 (XS) .. 0.65 (XL)
+  return Math.max(1, Math.min(100, Math.round(10 * merit * ease)));
 }
 
 function validate(o) {
@@ -3654,8 +3859,9 @@ function validate(o) {
       const at = 'context_used[' + i + ']';
       if (!c || typeof c !== 'object') { e.push(at + ' must be an object'); return; }
       if (!DOCS[c.doc]) { e.push(at + '.doc "' + c.doc + '" is not one of the documents: ' + Object.keys(DOCS).join(', ')); return; }
-      if (typeof c.quote !== 'string' || c.quote.trim().length < 8 || c.quote.length > 200) e.push(at + '.quote must be a literal passage of 8 to 200 characters');
-      else if (!norm(DOCS[c.doc].text).includes(norm(c.quote))) e.push(at + '.quote is not found word for word in ' + c.doc + ' — copy a passage literally from that document');
+      if (typeof c.quote !== 'string' || c.quote.trim().length < 8 || c.quote.length > 240) e.push(at + '.quote must be a literal passage of 8 to 240 characters');
+      else if (/\.\.\.|\u2026/.test(c.quote)) e.push(at + '.quote is truncated with an ellipsis — quote the whole sentence, word for word');
+      else if (!norm(DOCS[c.doc].text).includes(norm(c.quote))) e.push(at + '.quote is not found word for word in ' + c.doc + ' — you wrote "' + c.quote.slice(0, 90) + '". Copy a passage from that document exactly as it is written.');
       if (!['supports', 'conflicts', 'constrains'].includes(c.effect)) e.push(at + '.effect must be supports, conflicts or constrains');
       if (typeof c.how !== 'string' || !c.how.trim()) e.push(at + '.how must be a non-empty string');
     });
@@ -3669,6 +3875,51 @@ function validate(o) {
   return e;
 }
 
+// The shape is enforced by the API, so the model cannot omit a key. The hand-written validator
+// still runs after it: it checks the counts and, above all, that every quote is literal.
+const CARD_SCHEMA = {
+  name: 'product_card',
+  strict: true,
+  schema: {
+    type: 'object', additionalProperties: false,
+    required: ['decision', 'title', 'customer_need', 'value', 'value_rationale', 'effort', 'effort_rationale',
+               'revenue_at_stake', 'evidence', 'context_used', 'recommendation', 'scores'],
+    properties: {
+      decision: { type: 'string', enum: ['recommend', 'decline'] },
+      title: { type: 'string' },
+      customer_need: { type: 'string' },
+      value: { type: 'string', enum: ['High', 'Medium', 'Low'] },
+      value_rationale: { type: 'string' },
+      effort: { type: 'string', enum: ['XS', 'S', 'M', 'L', 'XL'] },
+      effort_rationale: { type: 'string' },
+      revenue_at_stake: { type: 'string' },
+      evidence: { type: 'array', items: { type: 'string' } },
+      context_used: {
+        type: 'array',
+        items: {
+          type: 'object', additionalProperties: false,
+          required: ['doc', 'quote', 'effect', 'how'],
+          properties: {
+            doc: { type: 'string' },
+            quote: { type: 'string' },
+            effect: { type: 'string', enum: ['supports', 'conflicts', 'constrains'] },
+            how: { type: 'string' }
+          }
+        }
+      },
+      recommendation: { type: 'string' },
+      scores: {
+        type: 'object', additionalProperties: false,
+        required: ['reach', 'impact', 'confidence', 'business_fit', 'effort'],
+        properties: {
+          reach: { type: 'integer' }, impact: { type: 'integer' }, confidence: { type: 'integer' },
+          business_fit: { type: 'integer' }, effort: { type: 'integer' }
+        }
+      }
+    }
+  }
+};
+
 const conf = id => (document.getElementById(id) && document.getElementById(id).value || '').trim();
 
 async function callModel(messages) {
@@ -3677,9 +3928,14 @@ async function callModel(messages) {
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-    body: JSON.stringify({ model: 'gpt-4o-mini', temperature: 0.2, response_format: { type: 'json_object' }, messages })
+    body: JSON.stringify({ model: 'gpt-4o', temperature: 0.2, response_format: { type: 'json_schema', json_schema: CARD_SCHEMA }, messages })
   });
-  if (!res.ok) throw new Error('OpenAI returned HTTP ' + res.status + ' — ' + (await res.text()).slice(0, 180));
+  if (!res.ok) {
+    const body = await res.text();
+    let detail = body.slice(0, 160);
+    try { const j = JSON.parse(body); if (j.error && j.error.message) detail = j.error.message; } catch (ex) { /* keep the raw body */ }
+    throw new Error('OpenAI returned HTTP ' + res.status + ' — ' + detail);
+  }
   return (await res.json()).choices[0].message.content;
 }
 
@@ -3695,14 +3951,15 @@ async function evaluate(ticket) {
     '', 'BUSINESS CONTEXT — the company\'s documents. Cite them literally in context_used:', contextForPrompt()
   ].join('\n');
   const messages = [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: user }];
-  for (let attempt = 1; attempt <= 2; attempt++) {
+  const ATTEMPTS = 3;   // one call plus two corrections: a literal quote is worth insisting on
+  for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
     const raw = await callModel(messages);
     let o = null, err = null;
     try { o = JSON.parse(raw); } catch (ex) { err = 'response is not valid JSON: ' + ex.message; }
     const errs = err ? [err] : validate(o);
     if (!errs.length) { o.priority = priority(o.scores); return o; }
     log('Evaluation rejected by the schema validator (attempt ' + attempt + '): ' + errs.join('; '));
-    if (attempt === 2) throw new Error('the model returned an invalid evaluation twice');
+    if (attempt === ATTEMPTS) throw new Error('the model returned an invalid evaluation ' + ATTEMPTS + ' times');
     messages.push({ role: 'assistant', content: raw });
     messages.push({ role: 'user', content: 'Your JSON was rejected by the schema validator:\n' + errs.join('\n') + '\nReturn corrected JSON only.' });
   }
@@ -3757,51 +4014,149 @@ async function setField(itemId, name, value) {
 
 const when = () => new Date().toISOString().slice(0, 16).replace('T', ' ');
 
-function customerSection(t) {
-  const a = ACCOUNTS[t.account];
+// Board columns, by name. The delivery dispatcher (delivery/) picks cards up from
+// "Approved for delivery", so an evaluated card must wait one column before it, where a
+// human decides. Falls back to position if a board does not have these names.
+const COLUMN = { incoming: ['Todo', 'Inbox', 'New'], evaluated: ['Needs human review', 'Evaluated', 'In Progress'] };
+function statusFor(kind) {
+  const f = project && project.fields.Status;
+  if (!f || !f.options) return kind === 'incoming' ? 0 : 1;
+  const hit = COLUMN[kind].find(name => f.options.some(o => o.name === name));
+  return hit || (kind === 'incoming' ? 0 : 1);
+}
+
+// ── The written report ──────────────────────────────────────────────
+// GitHub strips CSS from an issue body. Colour comes from three things it does render:
+// shields.io badges (CMA CGM navy and red), native alert callouts, and tables.
+const NAVY = '061D50', CMARED = 'E20101', GREEN = '017F5C', GREY = '6B7280';
+
+// shields.io encoding: a dash is doubled, an underscore is doubled, a space becomes an underscore.
+const shield = v => encodeURIComponent(String(v).replace(/-/g, '--').replace(/_/g, '__').replace(/ /g, '_'));
+const badge = (label, value, colour) =>
+  '![' + label + ': ' + value + '](https://img.shields.io/badge/' + shield(label) + '-' + shield(value) + '-' + (colour || NAVY) + '?style=for-the-badge&labelColor=' + NAVY + ')';
+
+const cell = v => String(v == null ? '' : v).replace(/\|/g, '\\|').replace(/\n+/g, ' ').trim();
+const quoteBlock = v => String(v).trim().split('\n').map(l => '> ' + l).join('\n');
+
+function sourcesTable(t, o) {
+  const docs = o ? new Set(o.context_used.map(c => c.doc)).size : 0;
   return [
-    '## Customer feedback',
-    '> ' + t.feedback.replace(/\n/g, '\n> '),
-    '',
-    '**Account:** ' + a.name + ' — ' + a.meta,
-    '**Importance for the customer:** ' + t.importance,
-    '**Sent:** ' + t.sentAt + ' from the T-REX cockpit'
+    '| | Source | What it brought |',
+    '|---|---|---|',
+    '| **1** | Customer feedback | ' + cell(ACCOUNTS[t.account].name) + ' — stated as *' + cell(t.importance) + '* |',
+    '| **2** | Product signals | ' + t.telemetry.live_event_count + ' events observed in this session, plus 30 days of history. Nobody typed these. |',
+    '| **3** | Business input | ' + (docs ? docs + ' company document' + (docs > 1 ? 's' : '') + ' quoted word for word' : 'awaiting evaluation') + ' |'
   ].join('\n');
 }
 
-function evaluationSection(t, o) {
-  const s = o.scores;
+// The ticket as it lands the moment the customer presses Send: their words, and nothing else.
+function customerSection(t) {
+  const a = ACCOUNTS[t.account];
   return [
-    '## Product agent evaluation',
+    badge('Account', a.name) + ' ' + badge('Status', 'Awaiting evaluation', GREY),
     '',
-    '**Decision:** ' + (o.decision === 'decline' ? 'Counter-proposal — do not build as requested' : 'Recommended'),
-    '**Value:** ' + o.value + ' — ' + o.value_rationale,
-    '**Tech effort:** ' + o.effort + ' — ' + o.effort_rationale,
-    '**Priority:** ' + o.priority + ' / 100 (reach ' + s.reach + ' · impact ' + s.impact + ' · confidence ' + s.confidence + ' · fit ' + s.business_fit + ' · effort ' + s.effort + ')',
-    '**Revenue at stake:** ' + o.revenue_at_stake,
+    '## 1 · Customer feedback — what they said',
     '',
-    '### What the customer actually needs',
-    o.customer_need,
+    quoteBlock(t.feedback),
     '',
-    '### What the product shows',
-    ...o.evidence.map(x => '- ' + x),
-    '',
-    '### Recommendation',
-    o.recommendation,
-    '',
-    '### Business context applied',
-    ...['supports', 'conflicts', 'constrains'].map(k => {
-      const xs = o.context_used.filter(c => c.effect === k).map(c => (DOCS[c.doc] ? DOCS[c.doc].title : c.doc));
-      return xs.length ? '**' + { supports: 'Supported by', conflicts: 'Conflicts with', constrains: 'Constrained by' }[k] + ':** ' + xs.join(' · ') : null;
-    }).filter(Boolean),
-    '',
-    '| Document | Effect | Quote | How it shaped the evaluation |',
+    '| Account | Plan | Importance | Sent from |',
     '|---|---|---|---|',
-    ...o.context_used.map(c => '| ' + (DOCS[c.doc] ? DOCS[c.doc].title : c.doc) + ' — `' + c.doc + '` | ' + c.effect + ' | "' + c.quote.trim().replace(/\|/g, '\\|') + '" | ' + c.how.replace(/\|/g, '\\|') + ' |'),
+    '| **' + cell(a.name) + '** | ' + cell(a.meta) + ' | ' + cell(t.importance) + ' | T-REX cockpit, ' + t.sentAt + ' |'
+  ].join('\n');
+}
+
+// The full report, written once the agent has weighed the three sources.
+function report(t, o) {
+  const a = ACCOUNTS[t.account], s = o.scores, declined = o.decision === 'decline';
+  const group = k => o.context_used.filter(c => c.effect === k);
+  const title = c => DOCS[c.doc] ? DOCS[c.doc].title : c.doc;
+  const constrained = group('constrains').concat(group('conflicts'));
+
+  const out = [
+    badge('Priority', o.priority + '/100', o.priority >= 70 ? GREEN : o.priority >= 40 ? NAVY : GREY)
+      + ' ' + badge('Value', o.value)
+      + ' ' + badge('Effort', o.effort)
+      + ' ' + badge('Account', a.name)
+      + (constrained.length ? ' ' + badge('Compliance', 'constrained', CMARED) : ''),
+    '',
+    '> [!IMPORTANT]',
+    '> **' + (declined ? 'Do not build it as asked. Counter-proposal below.' : 'Recommended.') + '**',
+    '> ' + cell(o.recommendation),
+    '',
+    '**Revenue at stake — ' + cell(o.revenue_at_stake) + '**',
+    '',
+    '### The three sources that produced this',
+    '',
+    sourcesTable(t, o),
     '',
     '---',
-    '_Evaluated by the T-REX product agent from the customer\'s words and ' + t.telemetry.live_event_count + ' usage signals observed in the product. Waiting for a human go / no-go on this board._'
-  ].join('\n');
+    '',
+    '## 1 · Customer feedback — what they said',
+    '',
+    quoteBlock(t.feedback),
+    '',
+    '| Account | Plan | Importance | Sent from |',
+    '|---|---|---|---|',
+    '| **' + cell(a.name) + '** | ' + cell(a.meta) + ' | ' + cell(t.importance) + ' | T-REX cockpit, ' + t.sentAt + ' |',
+    '',
+    '**What they actually need:** ' + cell(o.customer_need),
+    '',
+    '## 2 · Product signals — what they do',
+    '',
+    '_Observed in the product while people were working. None of it was ever typed by a customer._',
+    '',
+    ...o.evidence.map(x => '- ' + cell(x)),
+    '',
+    '## 3 · Business input — what the company already decided',
+    ''
+  ];
+
+  if (group('constrains').length) {
+    out.push('> [!CAUTION]');
+    out.push('> **Constrained by ' + group('constrains').map(title).join(' · ') + '**');
+    group('constrains').forEach(c => out.push('> ' + cell(c.how)));
+    out.push('');
+  }
+  if (group('conflicts').length) {
+    out.push('> [!WARNING]');
+    out.push('> **Conflicts with ' + group('conflicts').map(title).join(' · ') + '**');
+    group('conflicts').forEach(c => out.push('> ' + cell(c.how)));
+    out.push('');
+  }
+  if (group('supports').length) {
+    out.push('> [!TIP]');
+    out.push('> **Supported by ' + group('supports').map(title).join(' · ') + '**');
+    group('supports').forEach(c => out.push('> ' + cell(c.how)));
+    out.push('');
+  }
+
+  out.push('| Document | Effect | Quoted word for word |');
+  out.push('|---|---|---|');
+  o.context_used.forEach(c => out.push('| **' + cell(title(c)) + '**<br>`' + cell(c.doc) + '` | ' + cell(c.effect) + ' | "' + cell(c.quote) + '" |'));
+
+  out.push('');
+  out.push('---');
+  out.push('');
+  out.push('## Decision');
+  out.push('');
+  out.push('**' + (declined ? 'Counter-proposal — do not build as requested' : 'Recommended') + '.** ' + cell(o.recommendation));
+  out.push('');
+  out.push('| Value | Effort | Reach | Impact | Confidence | Business fit | **Priority** |');
+  out.push('|---|---|---|---|---|---|---|');
+  out.push('| ' + cell(o.value) + ' | ' + cell(o.effort) + ' | ' + s.reach + '/10 | ' + s.impact + '/10 | ' + s.confidence + '/10 | ' + s.business_fit + '/10 | **' + o.priority + '/100** |');
+  out.push('');
+  out.push('- **Value — ' + cell(o.value) + '.** ' + cell(o.value_rationale));
+  out.push('- **Effort — ' + cell(o.effort) + '.** ' + cell(o.effort_rationale));
+  out.push('');
+  out.push('> [!NOTE]');
+  out.push('> This is a recommendation, not a change. Move this card to decide: the agent makes the case, a human makes the call.');
+  out.push('');
+  out.push('---');
+  out.push('');
+  out.push('<sub>Written by the T-REX product agent · ' + t.telemetry.live_event_count + ' usage signals · '
+    + new Set(o.context_used.map(c => c.doc)).size + ' company documents quoted · ' + when() + '</sub>');
+
+  return out.join('\n');
 }
 
 async function createTicket(t) {
@@ -3809,11 +4164,11 @@ async function createTicket(t) {
   const title = t.feedback.split(/[.!?\n]/)[0].trim().slice(0, 80) || 'Feedback from ' + ACCOUNTS[t.account].name;
   const d = await graphql(`mutation($project:ID!,$title:String!,$body:String!){
     addProjectV2DraftIssue(input:{projectId:$project,title:$title,body:$body}){ projectItem { id databaseId content { ... on DraftIssue { id } } } }
-  }`, { project: project.id, title, body: customerSection(t) + '\n\n_Waiting for the product agent._' });
+  }`, { project: project.id, title, body: customerSection(t) + '\n\n---\n\n_The product agent is weighing this against product usage and the company\u2019s decisions._' });
   const item = d.addProjectV2DraftIssue.projectItem;
   t.itemId = item.id; t.draftId = item.content.id; t.title = title;
   t.url = project.url + '?pane=issue&itemId=' + item.databaseId;
-  await setField(t.itemId, 'Status', 0);
+  await setField(t.itemId, 'Status', statusFor('incoming'));
   await setField(t.itemId, 'Account', ACCOUNTS[t.account].name);
   log('Ticket created on "' + project.title + '": ' + title);
   track('ticket_created');
@@ -3823,23 +4178,214 @@ async function createTicket(t) {
 async function enrichTicket(t, o) {
   await graphql(`mutation($draft:ID!,$title:String!,$body:String!){
     updateProjectV2DraftIssue(input:{draftIssueId:$draft,title:$title,body:$body}){ draftIssue { id } }
-  }`, { draft: t.draftId, title: o.title, body: customerSection(t) + '\n\n' + evaluationSection(t, o) });
+  }`, { draft: t.draftId, title: o.title, body: report(t, o) });
   await setField(t.itemId, 'Value', o.value);
   await setField(t.itemId, 'Effort', o.effort);
   await setField(t.itemId, 'Priority', o.priority);
   await setField(t.itemId, 'Revenue at stake', o.revenue_at_stake);
-  await setField(t.itemId, 'Status', 1);
+  await setField(t.itemId, 'Status', statusFor('evaluated'));
   t.evaluated = o;
-  log('Ticket rewritten on the board: "' + o.title + '" — value ' + o.value + ', effort ' + o.effort + ', priority ' + o.priority + '/100. Moved to the next column.');
+  log('Ticket rewritten on the board: "' + o.title + '" — value ' + o.value + ', effort ' + o.effort + ', priority ' + o.priority + '/100. Moved to "' + (typeof statusFor('evaluated') === 'string' ? statusFor('evaluated') : 'the next column') + '".');
   track('ticket_evaluated', { priority: o.priority });
+}
+
+// ── Voice input: the microphone, then Whisper ───────────────────────
+// The customer talks, we transcribe, the text lands in the same box they could have typed in.
+// Nothing is stored: the audio lives as a Blob for the length of one request and is dropped.
+const WAVE_BARS = 48;
+const MIC_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>';
+const MIMES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+
+const VOICE = { state: 'idle', rec: null, chunks: [], stream: null, actx: null, raf: 0, tick: 0, t0: 0, mime: '', levels: [] };
+
+function pickMime() {
+  if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return '';
+  return MIMES.find(m => MediaRecorder.isTypeSupported(m)) || '';
+}
+
+// Whisper reads the extension, so the container we recorded in has to be the one we name.
+function audioName(mime) {
+  if (mime.indexOf('mp4') >= 0) return 'feedback.m4a';
+  if (mime.indexOf('ogg') >= 0) return 'feedback.ogg';
+  return 'feedback.webm';
+}
+
+// One bar under the textarea, four faces: idle, recording, transcribing, and idle carrying a message.
+function setVoice(state, msg) {
+  VOICE.state = state;
+  const bar = document.getElementById('AG_VOICE');
+  if (!bar) return;
+  if (state === 'recording') {
+    const bars = [];
+    for (let i = 0; i < WAVE_BARS; i++) bars.push('<i style="opacity:' + (0.22 + 0.78 * i / (WAVE_BARS - 1)).toFixed(2) + '"></i>');
+    bar.innerHTML = '<span class="ag-dot"></span><span class="ag-time" id="AG_TIME">0:00</span>'
+      + '<div class="ag-wave" id="AG_WAVE">' + bars.join('') + '</div>'
+      + '<button type="button" class="ag-stop" onclick="AG.voice()">Stop</button>';
+  } else if (state === 'working') {
+    bar.innerHTML = '<div class="ag-spin"></div><span class="ag-vwait">Transcribing…</span>';
+  } else {
+    bar.innerHTML = '<button type="button" class="ag-mic" onclick="AG.voice()" aria-label="Dictate your feedback">' + MIC_ICON + 'Dictate</button>'
+      + (msg ? '<span class="ag-vmsg">' + esc(msg) + '</span>'
+             : '<span class="ag-spacer"></span><span class="ag-count" id="AG_COUNT"></span>');
+    count();
+  }
+}
+
+function count() {
+  const el = document.getElementById('AG_COUNT'), box = document.getElementById('AG_FB');
+  if (!el || !box) return;
+  const n = box.value.trim().length;
+  el.textContent = n ? n + ' characters' : '';
+}
+
+function voice() {
+  if (VOICE.state === 'recording') { if (VOICE.rec && VOICE.rec.state === 'recording') VOICE.rec.stop(); return; }
+  if (VOICE.state !== 'working') startVoice();
+}
+
+async function startVoice() {
+  // getUserMedia needs a secure context: https or 127.0.0.1. Over file:// it simply is not there.
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {
+    log('Voice input unavailable: the microphone needs a secure context. Serve the folder over http://127.0.0.1.');
+    setVoice('idle', 'Dictation is unavailable here. You can type instead.');
+    return;
+  }
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+  } catch (ex) {
+    log('Microphone not available: ' + (ex.name || ex.message) + '.');
+    setVoice('idle', ex.name === 'NotAllowedError' ? 'Microphone access is blocked in the browser.' : 'No microphone available.');
+    return;
+  }
+  VOICE.stream = stream;
+  VOICE.mime = pickMime();
+  VOICE.chunks = [];
+  VOICE.rec = VOICE.mime ? new MediaRecorder(stream, { mimeType: VOICE.mime }) : new MediaRecorder(stream);
+  VOICE.rec.ondataavailable = e => { if (e.data && e.data.size) VOICE.chunks.push(e.data); };
+  VOICE.rec.onstop = finishVoice;
+  VOICE.rec.start();
+  VOICE.t0 = Date.now();
+  setVoice('recording');
+  meter(stream);
+  VOICE.tick = setInterval(() => {
+    const s = Math.floor((Date.now() - VOICE.t0) / 1000);
+    const el = document.getElementById('AG_TIME');
+    if (el) el.textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+    if (s >= 120 && VOICE.rec.state === 'recording') VOICE.rec.stop();   // two minutes is more than any feedback needs
+  }, 250);
+  track('voice_started', {});
+  log('Recording the customer’s voice.');
+}
+
+// The meter is the real signal, not decoration: RMS of the live stream, scrolled right to left.
+function meter(stream) {
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    VOICE.actx = new AC();
+    const an = VOICE.actx.createAnalyser();
+    an.fftSize = 512;
+    VOICE.actx.createMediaStreamSource(stream).connect(an);
+    const buf = new Uint8Array(an.fftSize);
+    const bars = document.querySelectorAll('#AG_WAVE i');
+    VOICE.levels = new Array(bars.length).fill(0);
+    const draw = () => {
+      VOICE.raf = requestAnimationFrame(draw);
+      an.getByteTimeDomainData(buf);
+      let sum = 0;
+      for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v; }
+      VOICE.levels.push(Math.min(1, Math.sqrt(sum / buf.length) * 3.4));
+      VOICE.levels.shift();
+      for (let i = 0; i < bars.length; i++) bars[i].style.transform = 'scaleY(' + Math.max(0.08, VOICE.levels[i]).toFixed(3) + ')';
+    };
+    draw();
+  } catch (ex) {
+    log('Level meter unavailable: ' + ex.message + '. Recording continues.');
+  }
+}
+
+function releaseMic() {
+  if (VOICE.raf) { cancelAnimationFrame(VOICE.raf); VOICE.raf = 0; }
+  if (VOICE.tick) { clearInterval(VOICE.tick); VOICE.tick = 0; }
+  if (VOICE.actx) { try { VOICE.actx.close(); } catch (ex) { /* already closed */ } VOICE.actx = null; }
+  if (VOICE.stream) { VOICE.stream.getTracks().forEach(tr => tr.stop()); VOICE.stream = null; }
+}
+
+async function finishVoice() {
+  const seconds = Math.round((Date.now() - VOICE.t0) / 1000);
+  const blob = new Blob(VOICE.chunks, { type: VOICE.mime || 'audio/webm' });
+  VOICE.chunks = [];
+  releaseMic();
+  if (blob.size < 2000) { setVoice('idle', 'That was too short to transcribe.'); return; }
+  setVoice('working');
+  try {
+    const text = await transcribe(blob);
+    if (!text) { setVoice('idle', 'We did not catch anything. Try again.'); return; }
+    const box = document.getElementById('AG_FB');
+    if (box) {
+      const cur = box.value.trim();
+      box.value = cur ? cur + ' ' + text : text;
+      box.focus();
+      box.setSelectionRange(box.value.length, box.value.length);
+      box.scrollTop = box.scrollHeight;
+    }
+    setVoice('idle');
+    track('voice_transcribed', { seconds, chars: text.length });
+    log('Transcribed ' + seconds + 's of voice into ' + text.length + ' characters.');
+  } catch (ex) {
+    log('Transcription failed: ' + ex.message);
+    setVoice('idle', 'We couldn’t transcribe that. Please type it instead.');
+  }
+}
+
+async function transcribe(blob) {
+  const key = conf('AG_KEY');
+  if (!key) throw new Error('no OpenAI API key in the operator panel');
+  const fd = new FormData();
+  fd.append('file', blob, audioName(VOICE.mime || blob.type || ''));
+  fd.append('model', 'whisper-1');
+  fd.append('response_format', 'text');
+  // A vocabulary nudge: Whisper spells the product and the freight terms right with it.
+  fd.append('prompt', 'Feedback about T-REX, the CMA CGM freight rate cockpit. Terms: tender, rate sheet, POL, POD, demurrage, THC, broker, shipper, filters, documents module.');
+  const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    method: 'POST', headers: { 'Authorization': 'Bearer ' + key }, body: fd
+  });
+  const body = await res.text();
+  if (!res.ok) {
+    let detail = body.slice(0, 160);
+    try { const j = JSON.parse(body); if (j.error && j.error.message) detail = j.error.message; } catch (ex) { /* keep the raw body */ }
+    throw new Error('OpenAI returned HTTP ' + res.status + ' — ' + detail);
+  }
+  return body.trim();
+}
+
+// Closing the drawer mid-sentence must not leave the microphone live.
+function cancelVoice() {
+  if (VOICE.state !== 'recording') return;
+  if (VOICE.rec) {
+    VOICE.rec.onstop = null;
+    if (VOICE.rec.state === 'recording') VOICE.rec.stop();
+  }
+  VOICE.chunks = [];
+  releaseMic();
+  setVoice('idle');
+  log('Recording dropped — the drawer was closed.');
 }
 
 // ── Customer flow ───────────────────────────────────────────────────
 let importance = 'Important', lastTicket = null, busy = false;
 
+const IMPORTANCE_HINT = {
+  'Nice to have': 'Worth doing when there is room for it.',
+  'Important':    'Slows your team down most days.',
+  'Blocking':     'Stops your team from working until it is fixed.'
+};
+
 function pickImportance(v, el) {
   importance = v;
-  el.parentNode.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c === el));
+  el.parentNode.querySelectorAll('.chip').forEach(c => { const on = c === el; c.classList.toggle('on', on); c.setAttribute('aria-pressed', on); });
+  const h = document.getElementById('AG_IMP_HINT');
+  if (h) h.textContent = IMPORTANCE_HINT[v] || '';
 }
 
 async function submit() {
@@ -3892,35 +4438,137 @@ function reloadContext() {
   return loadContext();
 }
 
+// ── Configuration ───────────────────────────────────────────────────
+// Non-secret and always the same for this demo: pre-filled so nothing has to be typed.
+const DEFAULTS = { github_owner: 'valentinpotie', github_project: '4', airtable_base: 'appeGLmP4EhvvujVY' };
+
+// Tokens come from secrets.local.json — gitignored, never part of the repository.
+const CONF_FIELDS = {
+  openai_key: 'AG_KEY', github_owner: 'AG_GH_OWNER', github_project: 'AG_GH_NUM',
+  github_token: 'AG_GH_TOKEN', airtable_base: 'AG_AT_BASE', airtable_token: 'AG_AT_TOKEN'
+};
+
+function rememberFields() {
+  try {
+    const box = {};
+    for (const k in CONF_FIELDS) box[k] = conf(CONF_FIELDS[k]);
+    sessionStorage.setItem('trex.agent.conf', JSON.stringify(box));
+  } catch (ex) { /* private window or storage disabled: the file and the defaults still work */ }
+}
+
+function fill(values, source) {
+  let n = 0;
+  for (const k in CONF_FIELDS) {
+    const el = document.getElementById(CONF_FIELDS[k]);
+    if (el && values[k] && !el.value) { el.value = values[k]; n++; }
+  }
+  if (n) log(n + ' fields pre-filled from ' + source + '.');
+  return n;
+}
+
+async function loadSecrets() {
+  try { fill(JSON.parse(sessionStorage.getItem('trex.agent.conf') || '{}'), 'this tab'); } catch (ex) { /* ignore */ }
+  try {
+    const r = await fetch('secrets.local.json', { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    fill(await r.json(), 'secrets.local.json');
+  } catch (ex) {
+    log('No secrets.local.json (' + ex.message + '). Paste the tokens in Connections, or copy secrets.local.example.json.');
+  }
+  document.querySelectorAll('#AG_OPS input').forEach(i => i.addEventListener('change', rememberFields));
+}
+
+// Everything the demo needs, in one go: fields, then the board, then the business context.
+async function boot() {
+  if (location.protocol === 'file:') {
+    // Opened by double-clicking the file: the browser blocks every local fetch, so the agent has
+    // neither its credentials nor the business context. Say so where the operator will look.
+    setStatus('AG_GH_STATE', 'err', 'Opened from file:// — serve the folder over http and reload');
+    setStatus('AG_CTX_STATE', 'err', 'Opened from file:// — business context cannot be read');
+    log('Opened from file://. The browser blocks local files, so no credentials and no business context. Run: python3 -m http.server 8765 --bind 127.0.0.1 — then open http://127.0.0.1:8765/trex-cockpit.html');
+    fileWarning();
+    return;
+  }
+  await loadSecrets();
+  if (conf('AG_GH_OWNER') && conf('AG_GH_NUM') && conf('AG_GH_TOKEN')) connect();
+  else setStatus('AG_GH_STATE', 'wait', 'Not connected — add a GitHub token');
+  await loadContext();
+}
+
 // ── Views ───────────────────────────────────────────────────────────
 const drawer = () => document.getElementById('FEEDBACK_DRAWER');
 const titleEl = () => drawer().querySelector('.dh-title');
 let ops = false;
 
-function form() {
-  document.getElementById('AG_CUST').innerHTML =
-      '<div class="ag-sec ag-enter">'
-    +   '<div class="ag-q">What would make T-REX work better for you?</div>'
-    +   '<textarea class="text-input" id="AG_FB" placeholder="Tell us what slows you down, or what you are missing."></textarea>'
-    +   '<span class="ag-lbl" style="margin-top:16px">How important is this for your team?</span>'
-    +   '<div class="ag-imp">' + ['Nice to have', 'Important', 'Blocking'].map(v => '<button type="button" class="chip' + (v === importance ? ' on' : '') + '" onclick="AG.pickImportance(\'' + v + '\', this)">' + v + '</button>').join('') + '</div>'
-    +   '<div class="ag-actions"><button class="btn-prim" id="AG_SEND" onclick="AG.submit()">Send feedback</button>'
-    +   '<span class="ag-hint">Goes straight to the product team.</span></div>'
-    +   '<div class="ag-err" id="AG_FB_ERR" hidden></div>'
-    + '</div>';
+function fileWarning() {
+  const b = document.createElement('div');
+  b.className = 'ag-file-warn';
+  b.innerHTML = 'This page was opened from a file. The agent cannot reach its credentials or the business context.<br>'
+    + 'Serve the folder over http, then open <b>http://127.0.0.1:8765/trex-cockpit.html</b>';
+  document.getElementById('AG_BODY').prepend(b);
 }
 
-function thanks(t) {
+function form() {
+  const a = ACCOUNTS[AC];
   document.getElementById('AG_CUST').innerHTML =
-      '<div class="ag-ok ag-enter">'
-    +   '<div class="ag-ok-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>'
-    +   '<h3>Thank you.</h3>'
-    +   '<p>Your feedback reached the product team and is on their board as <b>“' + esc(t.title) + '”</b>. We’ll come back to you.</p>'
-    +   '<div class="ag-actions"><button class="btn-sec" onclick="AG.again()">Send more feedback</button></div>'
+      '<div class="ag-cust ag-enter">'
+    +   '<div class="ag-hero">'
+    +     '<h2>What slows you down?</h2><div class="ag-rule"></div>'
+    +     '<p>Tell the T-REX product team what to fix or what is missing. One sentence is enough.</p>'
+    +   '</div>'
+    +   '<div class="ag-write">'
+    +     '<div class="ag-comp">'
+    +       '<textarea class="ag-ta" id="AG_FB" rows="5" oninput="AG.count()" aria-label="Your feedback" placeholder="For example: pulling up the rates we need every morning takes too many clicks."></textarea>'
+    +       '<div class="ag-bar" id="AG_VOICE"></div>'
+    +     '</div>'
+    +     '<div class="ag-err" id="AG_FB_ERR" hidden></div>'
+    +   '</div>'
+    +   '<div class="ag-row">'
+    +     '<div class="ag-row-l"><div class="f-label">Importance</div><div class="f-sub">for your team</div></div>'
+    +     '<div class="ag-row-c">'
+    +       '<div class="ag-imp" role="group" aria-label="Importance">' + ['Nice to have', 'Important', 'Blocking'].map(v => '<button type="button" class="chip' + (v === importance ? ' on' : '') + '" aria-pressed="' + (v === importance) + '" onclick="AG.pickImportance(\'' + v + '\', this)">' + v + '</button>').join('') + '</div>'
+    +       '<div class="ag-imp-hint" id="AG_IMP_HINT">' + IMPORTANCE_HINT[importance] + '</div>'
+    +     '</div>'
+    +   '</div>'
+    +   '<div class="ag-row">'
+    +     '<div class="ag-row-l"><div class="f-label">Sent as</div></div>'
+    +     '<div class="ag-row-c ag-from"><div class="sb-av">' + a.initials + '</div><div><div class="ag-from-n">' + esc(a.name) + '</div><div class="ag-from-m">' + esc(a.plan) + ' plan</div></div></div>'
+    +   '</div>'
+    +   '<div class="drawer-footer ag-foot">'
+    +     '<button type="button" class="btn-sec" onclick="closeFeedbackDrawer()">Cancel</button>'
+    +     '<button type="button" class="btn-prim" id="AG_SEND" onclick="AG.submit()">Send feedback</button>'
+    +   '</div>'
+    + '</div>';
+  setVoice('idle');
+}
+
+const CHECK_ICON = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+
+function thanks(t) {
+  const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  document.getElementById('AG_CUST').innerHTML =
+      '<div class="ag-cust ag-enter">'
+    +   '<div class="ag-hero">'
+    +     '<h2>Thank you</h2><div class="ag-rule"></div>'
+    +     '<p>Your feedback is with the T-REX product team.</p>'
+    +   '</div>'
+    +   '<ol class="ag-steps">'
+    +     '<li class="ag-step done"><span class="ag-step-dot">' + CHECK_ICON + '</span><span class="ag-step-t">Received</span><span class="ag-step-w">' + time + '</span>'
+    +       '<span class="ag-step-d">On the product board as “' + esc(t.title) + '”.</span></li>'
+    +     '<li class="ag-step next"><span class="ag-step-dot"><i></i></span><span class="ag-step-t">Reviewed by the product team</span><span class="ag-step-w">Next</span>'
+    +       '<span class="ag-step-d">Weighed against how teams use T-REX and what is already planned.</span></li>'
+    +     '<li class="ag-step"><span class="ag-step-dot"></span><span class="ag-step-t">You hear back</span><span class="ag-step-w"></span>'
+    +       '<span class="ag-step-d">We come back to you with the decision.</span></li>'
+    +   '</ol>'
+    +   '<div class="drawer-footer ag-foot">'
+    +     '<button type="button" class="btn-sec" onclick="AG.again()">Send more feedback</button>'
+    +     '<button type="button" class="btn-prim" onclick="AG.done()">Back to the cockpit</button>'
+    +   '</div>'
     + '</div>';
 }
 
 function again() { form(); document.getElementById('AG_FB').focus(); }
+function done() { form(); closeFeedbackDrawer(); }
 
 function setStatus(id, kind, text, spin) {
   const el = document.getElementById(id);
@@ -3964,17 +4612,17 @@ function opsPanel() {
     +   '<div class="ag-conn">'
     +     '<input class="text-input" id="AG_KEY" type="password" autocomplete="off" placeholder="OpenAI API key" aria-label="OpenAI API key">'
     +     '<div style="display:grid;grid-template-columns:1fr 120px;gap:8px">'
-    +       '<input class="text-input" id="AG_GH_OWNER" autocomplete="off" placeholder="GitHub owner" aria-label="GitHub owner">'
-    +       '<input class="text-input" id="AG_GH_NUM" inputmode="numeric" autocomplete="off" placeholder="Project #" aria-label="GitHub Project number">'
+    +       '<input class="text-input" id="AG_GH_OWNER" autocomplete="off" value="' + DEFAULTS.github_owner + '" placeholder="GitHub owner" aria-label="GitHub owner">'
+    +       '<input class="text-input" id="AG_GH_NUM" inputmode="numeric" autocomplete="off" value="' + DEFAULTS.github_project + '" placeholder="Project #" aria-label="GitHub Project number">'
     +     '</div>'
     +     '<input class="text-input" id="AG_GH_TOKEN" type="password" autocomplete="off" placeholder="GitHub token with project scope" aria-label="GitHub token">'
     +     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
-    +       '<input class="text-input" id="AG_AT_BASE" autocomplete="off" placeholder="Airtable base id (app…)" aria-label="Airtable base id">'
+    +       '<input class="text-input" id="AG_AT_BASE" autocomplete="off" value="' + DEFAULTS.airtable_base + '" placeholder="Airtable base id (app…)" aria-label="Airtable base id">'
     +       '<input class="text-input" id="AG_AT_TOKEN" type="password" autocomplete="off" placeholder="Airtable token (records read)" aria-label="Airtable token">'
     +     '</div>'
     +   '</div>'
     +   '<div class="ag-actions" style="margin-top:10px"><button class="btn-sec" onclick="AG.connect()">Connect to the board</button>'
-    +   '<span class="ag-hint">Keys stay in this tab’s memory. Nothing is written to disk or to the repository.</span></div>'
+    +   '<span class="ag-hint">Tokens are read from secrets.local.json — gitignored, never committed.</span></div>'
     +   '<div class="ag-status" id="AG_GH_STATE"><span class="ag-tag wait">…</span><span>Not connected</span></div>'
     + '</div>'
     + '<div class="ag-sec">'
@@ -4006,9 +4654,18 @@ function setMode(toOps) {
   if (ops) renderAccount();
 }
 
+const GEAR_ICON = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+
+// The drawer is the customer's Feedback form by default. The operator panel is the same drawer
+// switched over, and it is only ever entered from the gear (or Cmd/Ctrl + .) — never from Feedback.
+function openOps() {
+  openFeedbackDrawer();   // idempotent, and the wrap below forces the customer view…
+  setMode(true);          // …so the switch has to come after it.
+}
+
 function toggleOps() {
-  setMode(!ops);
-  if (drawer().style.display !== 'flex') openFeedbackDrawer();
+  if (ops) { setMode(false); return; }
+  openOps();
 }
 
 function connect() {
@@ -4029,17 +4686,25 @@ function mount() {
   form();
   renderAccount();
   setMode(location.hash === '#ops');
-  loadContext();
+  boot();
   if (location.hash === '#ops') openFeedbackDrawer();
 
   // Customer opens the drawer with the Feedback tab; operator with Cmd/Ctrl + .
-  wrap('openFeedbackDrawer', null, () => { if (!ops) { const b = document.getElementById('AG_FB'); if (b) b.focus(); } });
+  wrap('openFeedbackDrawer', null, () => { setMode(false); const b = document.getElementById('AG_FB'); if (b) b.focus(); });
+  wrap('closeFeedbackDrawer', () => cancelVoice(), null);
   document.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key === '.') { e.preventDefault(); toggleOps(); } });
 
-  // Same door, discreet: the "T-REX" wordmark in the sidebar. No tooltip, no styling of its own —
-  // it sits inside .sb-logo-wrap, which already shows a pointer, so nothing marks it as a control.
-  document.querySelectorAll('.sb-app-name').forEach(el => {
-    el.addEventListener('click', e => { e.stopPropagation(); toggleOps(); });
+  // Settings gear in the sidebar header, left of the collapse control — the way in to the operator
+  // panel. Injected rather than written into the cockpit markup, and added to both sidebars at once.
+  document.querySelectorAll('.sb-header').forEach(h => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'sb-close';             // the sidebar's icon-button style, same as the collapse control
+    b.title = 'Settings';
+    b.setAttribute('aria-label', 'Settings');
+    b.innerHTML = GEAR_ICON;
+    b.addEventListener('click', openOps);
+    h.insertBefore(b, h.querySelector('.sb-close'));
   });
 
   track('screen_view', { screen: 'cockpit' });
@@ -4060,7 +4725,7 @@ function switchAccount(k) {
 document.addEventListener('DOMContentLoaded', mount);
 if (document.readyState !== 'loading') mount();
 
-return { submit, again, pickImportance, connect, evaluateLast, reloadContext, toggleOps, switchAccount, events, summary };
+return { submit, again, done, pickImportance, voice, count, connect, evaluateLast, reloadContext, openOps, toggleOps, switchAccount, events, summary };
 })();
 </script>
 </body>
